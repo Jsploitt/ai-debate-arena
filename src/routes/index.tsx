@@ -57,6 +57,7 @@ function Arena() {
       ``,
       `**Resolution:** ${debate.topic || "(none)"}`,
       `**Mode:** ${debate.usingSimulation ? "Simulation" : "Live Local API"}`,
+      `**Debate language:** ${settings.language === "ar" ? "Arabic" : "English"}`,
       `**Generated:** ${new Date().toLocaleString()}`,
       ``,
       ...debate.messages.flatMap((m) => {
@@ -233,6 +234,8 @@ function Arena() {
             setInput("");
           }}
           onDownload={downloadTranscript}
+          language={settings.language}
+          onLanguageChange={(language) => updateSettings({ language })}
         />
       </main>
     </div>
