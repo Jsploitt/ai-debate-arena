@@ -196,28 +196,18 @@ function Arena() {
           </div>
 
 
-          <aside className="hidden flex-col gap-3 xl:flex">
-            <TelemetryPanel
-              telemetry={debate.lastTelemetry}
-              contextTokens={debate.contextTokens}
-              contextWindow={settings.contextWindow}
+          <aside className="arena-scroll flex max-h-[52vh] min-h-[380px] flex-col gap-3 overflow-y-auto overscroll-contain">
+            <JudgePanel
+              scorecard={debate.scorecard}
+              judging={debate.judging}
+              names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
+              onJudge={() => void debate.judgeDebate()}
+              canJudge={debate.messages.length >= 2}
             />
-            <div className="arena-panel rounded-2xl p-3">
-              <p className="mb-2 font-mono text-xs tracking-[0.14em] text-muted-foreground uppercase">
-                Live HTTP monitor
-              </p>
-              <HttpMonitor logs={debate.logs} />
-            </div>
           </aside>
         </div>
 
-        <JudgePanel
-          scorecard={debate.scorecard}
-          judging={debate.judging}
-          names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
-          onJudge={() => void debate.judgeDebate()}
-          canJudge={debate.messages.length >= 2}
-        />
+
 
 
 
