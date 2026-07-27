@@ -197,13 +197,16 @@ export function JudgePanel({
   names,
   onJudge,
   canJudge,
+  language = "en",
 }: {
   scorecard: JudgeScorecard | null;
   judging: boolean;
   names: Record<Side, string>;
   onJudge: () => void;
   canJudge: boolean;
+  language?: DebateLanguage;
 }) {
+  const rtl = language === "ar";
   return (
     <section className="arena-panel rounded-2xl p-4">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
