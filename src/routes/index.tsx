@@ -73,6 +73,32 @@ function Arena() {
           ``,
         ];
       }),
+      ...(debate.scorecard
+        ? [
+            `## AI Judge Scorecard${debate.scorecard.simulated ? " (heuristic)" : ""}`,
+            ``,
+            `| Criterion | ${settings.alpha.name} | ${settings.beta.name} |`,
+            `| --- | --- | --- |`,
+            ...(Object.keys(debate.scorecard.alpha.scores) as Array<
+              keyof typeof debate.scorecard.alpha.scores
+            >).map(
+              (c) =>
+                `| ${c} | ${debate.scorecard!.alpha.scores[c].toFixed(1)} | ${debate.scorecard!.beta.scores[c].toFixed(1)} |`,
+            ),
+            `| **Total** | **${debate.scorecard.alpha.total.toFixed(1)}** | **${debate.scorecard.beta.total.toFixed(1)}** |`,
+            ``,
+            `**Winner:** ${
+              debate.scorecard.winner === "tie"
+                ? "Draw"
+                : debate.scorecard.winner === "alpha"
+                  ? settings.alpha.name
+                  : settings.beta.name
+            }`,
+            ``,
+            debate.scorecard.verdict,
+            ``,
+          ]
+        : []),
     ];
     const blob = new Blob([lines.filter((l) => l !== undefined).join("\n")], {
       type: "text/markdown;charset=utf-8",
@@ -83,7 +109,8 @@ function Arena() {
     a.download = `debate-transcript-${Date.now()}.md`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [debate.messages, debate.topic, debate.usingSimulation, settings]);
+  }, [debate.messages, debate.topic, debate.usingSimulation, debate.scorecard, settings]);
+
 
   const round = Math.floor(debate.turnIndex / 2) + (debate.turnIndex % 2 === 0 ? 1 : 1);
 
