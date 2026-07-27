@@ -46,7 +46,7 @@ export function TelemetryPanel({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3">
         <TelemetryCard
           icon={Timer}
           label="Time to first token"
