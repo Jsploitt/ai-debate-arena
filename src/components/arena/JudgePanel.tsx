@@ -56,6 +56,7 @@ function ScoreRow({
   side,
   scale = 10,
   weight = 1,
+  rtl = false,
 }: {
   label: string;
   value: number;
@@ -63,6 +64,7 @@ function ScoreRow({
   side: Side;
   scale?: number;
   weight?: number;
+  rtl?: boolean;
 }) {
   return (
     <div className="space-y-1">
