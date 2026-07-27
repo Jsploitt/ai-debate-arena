@@ -271,6 +271,53 @@ export function useDebate(settings: ArenaSettings) {
   const usingSimulationRef = useRef(usingSimulation);
   usingSimulationRef.current = usingSimulation;
 
+  const messagesRef = useRef<DebateMessage[]>([]);
+  messagesRef.current = messages;
+
+  const judgeDebate = useCallback(async () => {
+    const s = settingsRef.current;
+    const transcript = messagesRef.current.filter((m) => !m.streaming && m.content.trim());
+    if (!s.judge.enabled || transcript.length < 2 || !topicRef.current) return;
+
+    const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
+    setJudging(true);
+    setScorecard(null);
+    log("info", "system", "AI Judge is scoring the debate…");
+
+    if (!usingSimulationRef.current) {
+      const controller = new AbortController();
+      try {
+        log(
+          "request",
+          "system",
+          `POST ${s.judge.endpoint} (AI Judge)\nmodel=${s.judge.model} temperature=${s.judge.temperature}`,
+        );
+        const { scorecard: live, raw } = await runLiveJudge(
+          s.judge,
+          topicRef.current,
+          transcript,
+          names,
+        );
+        if (live) {
+          setScorecard(live);
+          log("info", "system", `AI Judge verdict: ${live.winner.toUpperCase()}.`);
+          setJudging(false);
+          return;
+        }
+        log("error", "system", `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`);
+      } catch (error) {
+        controller.abort();
+        const msg = error instanceof Error ? error.message : String(error);
+        log("error", "system", `AI Judge request failed (${msg}) — using simulated scoring.`);
+      }
+    }
+
+    const simulated = simulateJudge(topicRef.current, transcript, names);
+    setScorecard(simulated);
+    log("info", "system", `AI Judge (simulated) verdict: ${simulated.winner.toUpperCase()}.`);
+    setJudging(false);
+  }, [log]);
+
   const loop = useCallback(async () => {
     if (busyRef.current) return;
     busyRef.current = true;
@@ -283,8 +330,10 @@ export function useDebate(settings: ArenaSettings) {
       runningRef.current = false;
       setPhase("finished");
       log("info", "system", "Debate complete.");
+      void judgeDebate();
     }
-  }, [runTurn, log]);
+  }, [runTurn, log, judgeDebate]);
+
 
   const resolveMode = useCallback(async () => {
     const s = settingsRef.current;
