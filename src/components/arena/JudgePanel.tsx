@@ -77,7 +77,14 @@ function SideCard({
 
       <div className="space-y-2">
         {JUDGE_CRITERIA.map((c) => (
-          <ScoreRow key={c} label={c} value={score.scores[c]} side={side} />
+          <ScoreRow
+            key={c}
+            label={c}
+            value={score.scores[c]}
+            reason={score.reasons?.[c]}
+            side={side}
+          />
+
         ))}
       </div>
 
