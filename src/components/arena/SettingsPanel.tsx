@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EndpointsSection } from "@/components/arena/EndpointsSection";
+import { DEFAULT_JUDGE_WEIGHTS, JUDGE_CRITERIA } from "@/lib/debate/judge";
+
 import { listModels } from "@/lib/debate/ollamaClient";
 
 import { TONE_PRESETS } from "@/lib/debate/presets";
