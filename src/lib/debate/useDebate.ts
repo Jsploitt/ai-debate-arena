@@ -382,6 +382,11 @@ export function useDebate(settings: ArenaSettings) {
             },
             interim,
             s.language,
+            (partial) => {
+              // Live-stream the verdict + scorecard as the judge writes it.
+              if (seq !== judgeSeqRef.current) return;
+              setScorecard(partial);
+            },
           );
           if (seq !== judgeSeqRef.current) return;
           if (live) {
