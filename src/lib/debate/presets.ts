@@ -47,13 +47,23 @@ const beta: DebaterConfig = {
   systemPrompt: TONE_PRESETS.Aggressive,
 };
 
+const judge: JudgeConfig = {
+  enabled: true,
+  endpoint: "http://localhost:11434/api/chat",
+  model: "llama3",
+  temperature: 0.2,
+  systemPrompt: JUDGE_SYSTEM_PROMPT,
+};
+
 export const DEFAULT_SETTINGS: ArenaSettings = {
   alpha,
   beta,
   rounds: 4,
   mode: "auto",
   contextWindow: 8192,
+  judge,
 };
+
 
 export const SAMPLE_TOPICS = [
   "Is edge computing superior to centralized cloud for IoT?",
