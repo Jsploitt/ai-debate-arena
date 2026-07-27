@@ -426,8 +426,8 @@ export function useDebate(settings: ArenaSettings) {
     const total = settingsRef.current.rounds * 2;
     while (runningRef.current && turnRef.current < total) {
       await runTurn(turnRef.current);
-      // Live scoring: refresh the scorecard whenever both sides have spoken.
-      if (turnRef.current % 2 === 0 && turnRef.current < total) {
+      // Live scoring: refresh the running scorecard after every completed turn.
+      if (turnRef.current < total) {
         void judgeDebate(true);
       }
     }
