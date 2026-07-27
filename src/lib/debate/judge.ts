@@ -354,18 +354,18 @@ export function simulateJudge(
   const verdict = ar
     ? interim
       ? winner === "tie"
-        ? `النتيجة الجارية حول "${topic}": تعادل تام حتى الآن — ${names.alpha} يتفوق في البنية و${names.beta} في الضغط.`
-        : `النتيجة الجارية حول "${topic}": ${lead} متقدم حالياً بتفنيدات أحدّ وأكثر استناداً إلى الأدلة.`
+        ? `النتيجة الجارية في هذه القضية: تعادل تام حتى الآن — ${names.alpha} يتفوق في البنية و${names.beta} في الضغط.`
+        : `النتيجة الجارية في هذه القضية: ${lead} متقدم حالياً بتفنيدات أحدّ وأكثر استناداً إلى الأدلة.`
       : winner === "tie"
-        ? `في "${topic}" أنهى النموذجان النقاش بفارق لا يُذكر: ${names.alpha} امتلك البنية و${names.beta} امتلك الضغط.`
-        : `في "${topic}" يذهب القرار إلى ${lead}، الذي حوّل عدداً أكبر من دعاواه إلى تفنيدات مباشرة مدعومة بالأدلة بدل إعادة عرض موقفه الافتتاحي.`
+        ? `أنهى النموذجان النقاش بفارق لا يُذكر: ${names.alpha} امتلك البنية و${names.beta} امتلك الضغط.`
+        : `يذهب القرار إلى ${lead}، الذي حوّل عدداً أكبر من دعاواه إلى تفنيدات مباشرة مدعومة بالأدلة بدل إعادة عرض موقفه الافتتاحي.`
     : interim
     ? winner === "tie"
-      ? `Running score on "${topic}": dead level so far — ${names.alpha} owns structure, ${names.beta} owns pressure.`
-      : `Running score on "${topic}": ${lead} is ahead right now on sharper, better-evidenced rebuttals.`
+      ? `Running score: dead level so far — ${names.alpha} owns structure, ${names.beta} owns pressure.`
+      : `Running score: ${lead} is ahead right now on sharper, better-evidenced rebuttals.`
     : winner === "tie"
-      ? `On "${topic}" the two models finished within a rounding error of each other: ${names.alpha} owned structure, ${names.beta} owned pressure.`
-      : `On "${topic}" the decision goes to ${lead}, who converted more of their claims into direct, evidenced rebuttals rather than restating the opening position.`;
+      ? `The two models finished within a rounding error of each other: ${names.alpha} owned structure, ${names.beta} owned pressure.`
+      : `The decision goes to ${lead}, who converted more of their claims into direct, evidenced rebuttals rather than restating the opening position.`;
 
   return {
     alpha,
