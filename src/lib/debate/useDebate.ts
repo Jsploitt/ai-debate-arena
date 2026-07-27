@@ -529,6 +529,8 @@ export function useDebate(settings: ArenaSettings) {
   }, []);
 
   return {
+    resolvedModels,
+    availableModels,
     topic,
     phase,
     messages,
