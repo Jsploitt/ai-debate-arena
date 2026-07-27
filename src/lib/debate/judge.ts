@@ -141,6 +141,7 @@ export function simulateJudge(
   topic: string,
   messages: DebateMessage[],
   names: Record<Side, string>,
+  interim = false,
 ): JudgeScorecard {
   const stats = (s: Side) => {
     const own = messages.filter((m) => m.side === s);
@@ -156,6 +157,7 @@ export function simulateJudge(
 
   const build = (s: Side) => {
     const t = stats(s);
+    const name = names[s];
     const scores = {
       Logic: clamp(6 + Math.min(2.5, t.unique / 90) + Math.min(1, t.turns / 4)),
       Evidence: clamp(5.5 + Math.min(3.5, t.numbers / 3)),
@@ -163,8 +165,16 @@ export function simulateJudge(
       Clarity: clamp(9.5 - Math.abs(t.avgSentence - 18) / 6),
       Persuasion: clamp(6 + Math.min(3, t.words / 140)),
     } as Record<JudgeCriterion, number>;
+    const reasons: Record<JudgeCriterion, string> = {
+      Logic: `${t.unique} distinct terms across ${t.turns} turn(s) — ${scores.Logic >= 8 ? "argument chains stayed tight and non-repetitive" : "some claims were restated rather than advanced"}.`,
+      Evidence: `${t.numbers} numeric/quantified references — ${scores.Evidence >= 8 ? "claims were consistently backed by figures" : "more concrete data would strengthen the case"}.`,
+      Rebuttal: `${t.rebuttals} direct counter-moves and ${t.questions} challenge question(s) aimed at the opponent's framing.`,
+      Clarity: `Average sentence length ${t.avgSentence.toFixed(0)} words — ${scores.Clarity >= 8 ? "crisp and easy to follow on stage" : "denser than ideal for a live audience"}.`,
+      Persuasion: `${t.words} words of sustained argument; ${scores.Persuasion >= 8 ? `${name} closed with real rhetorical momentum` : `${name} landed the point but with limited escalation`}.`,
+    };
     return {
       scores,
+      reasons,
       total: sum(scores),
       summary:
         s === "alpha"
@@ -178,12 +188,25 @@ export function simulateJudge(
   const winner: Side | "tie" =
     Math.abs(alpha.total - beta.total) < 0.4 ? "tie" : alpha.total > beta.total ? "alpha" : "beta";
 
-  const verdict =
-    winner === "tie"
+  const lead = winner === "alpha" ? names.alpha : names.beta;
+  const verdict = interim
+    ? winner === "tie"
+      ? `Running score on "${topic}": dead level so far — ${names.alpha} owns structure, ${names.beta} owns pressure.`
+      : `Running score on "${topic}": ${lead} is ahead right now on sharper, better-evidenced rebuttals.`
+    : winner === "tie"
       ? `On "${topic}" the two models finished within a rounding error of each other: ${names.alpha} owned structure, ${names.beta} owned pressure.`
-      : `On "${topic}" the decision goes to ${winner === "alpha" ? names.alpha : names.beta}, who converted more of their claims into direct, evidenced rebuttals rather than restating the opening position.`;
+      : `On "${topic}" the decision goes to ${lead}, who converted more of their claims into direct, evidenced rebuttals rather than restating the opening position.`;
 
-  return { alpha, beta, winner, verdict, simulated: true, createdAt: Date.now() };
+  return {
+    alpha,
+    beta,
+    winner,
+    verdict,
+    simulated: true,
+    createdAt: Date.now(),
+    interim,
+    turnsScored: messages.length,
+  };
 }
 
 export async function runLiveJudge(
@@ -193,8 +216,10 @@ export async function runLiveJudge(
   names: Record<Side, string>,
   signal?: AbortSignal,
   onChunk?: (raw: string) => void,
+  interim = false,
 ): Promise<{ scorecard: JudgeScorecard | null; raw: string }> {
-  const payload = buildJudgeMessages(judge, topic, messages, names);
+  const payload = buildJudgeMessages(judge, topic, messages, names, interim);
+
   let raw = "";
   for await (const chunk of streamChat(toDebaterConfig(judge), payload, signal)) {
     if (signal?.aborted) break;
