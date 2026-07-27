@@ -85,6 +85,8 @@ export function loadSettings(): ArenaSettings {
       ...parsed,
       alpha: { ...DEFAULT_SETTINGS.alpha, ...(parsed.alpha ?? {}) },
       beta: { ...DEFAULT_SETTINGS.beta, ...(parsed.beta ?? {}) },
+      judge: { ...DEFAULT_SETTINGS.judge, ...(parsed.judge ?? {}) },
+
     };
   } catch {
     return DEFAULT_SETTINGS;
