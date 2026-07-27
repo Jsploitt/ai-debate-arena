@@ -341,7 +341,7 @@ export function useDebate(settings: ArenaSettings) {
     async (interim = false) => {
       const s = settingsRef.current;
       const transcript = messagesRef.current.filter((m) => !m.streaming && m.content.trim());
-      if (!s.judge.enabled || transcript.length < 2 || !topicRef.current) return;
+      if (!s.judge.enabled || transcript.length < 1 || !topicRef.current) return;
 
       const seq = ++judgeSeqRef.current;
       const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
@@ -382,6 +382,11 @@ export function useDebate(settings: ArenaSettings) {
             },
             interim,
             s.language,
+            (partial) => {
+              // Live-stream the verdict + scorecard as the judge writes it.
+              if (seq !== judgeSeqRef.current) return;
+              setScorecard(partial);
+            },
           );
           if (seq !== judgeSeqRef.current) return;
           if (live) {
@@ -421,8 +426,8 @@ export function useDebate(settings: ArenaSettings) {
     const total = settingsRef.current.rounds * 2;
     while (runningRef.current && turnRef.current < total) {
       await runTurn(turnRef.current);
-      // Live scoring: refresh the scorecard whenever both sides have spoken.
-      if (turnRef.current % 2 === 0 && turnRef.current < total) {
+      // Live scoring: refresh the running scorecard after every completed turn.
+      if (turnRef.current < total) {
         void judgeDebate(true);
       }
     }

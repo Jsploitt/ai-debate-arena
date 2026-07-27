@@ -245,12 +245,14 @@ export function JudgePanel({
         >
           <Loader2 className="size-4 animate-spin text-primary" />
           <p className="font-mono text-[11px] tracking-[0.14em] text-primary uppercase">
-            Judge is updating…
+            {scorecard?.streaming ? "Judge is writing…" : "Judge is updating…"}
           </p>
           <p className="text-xs text-muted-foreground">
-            {scorecard
-              ? "Re-reading the latest turns and adjusting each criterion."
-              : "Reading the transcript and scoring both debaters."}
+            {scorecard?.streaming
+              ? "Scores and verdict are streaming in live."
+              : scorecard
+                ? "Re-reading the latest turns and adjusting each criterion."
+                : "Reading the transcript and scoring both debaters."}
           </p>
         </div>
       )}
@@ -265,7 +267,13 @@ export function JudgePanel({
       )}
 
       {scorecard && (
-        <div className={cn("space-y-4 transition-opacity", judging && "opacity-60")}>
+        <div
+          className={cn(
+            "space-y-4 transition-opacity",
+            judging && !scorecard.streaming && "opacity-60",
+          )}
+        >
+
 
           <div className="grid gap-3 md:grid-cols-2">
             <SideCard

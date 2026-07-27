@@ -139,6 +139,48 @@ function clamp(n: unknown, scale = DEFAULT_JUDGE_SCALE): number {
   return Math.max(0, Math.min(scale, Math.round(v * 10) / 10));
 }
 
+/**
+ * Best-effort repair of a truncated JSON object so a half-streamed judge
+ * response can still be rendered live. Closes open strings/containers and
+ * drops any dangling key or partial token at the tail.
+ */
+function repairPartialJson(input: string): string | null {
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  let lastSafe = -1; // index (exclusive) of the last complete value/comma boundary
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') {
+        inString = false;
+        lastSafe = i + 1;
+      }
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{" || ch === "[") stack.push(ch === "{" ? "}" : "]");
+    else if (ch === "}" || ch === "]") {
+      stack.pop();
+      lastSafe = i + 1;
+    } else if (ch === "," || /[0-9truefalsn]/.test(ch)) lastSafe = i + 1;
+  }
+
+  let out = input;
+  if (inString) {
+    out += '"';
+  } else if (lastSafe > 0) {
+    out = input.slice(0, lastSafe);
+  }
+  // Drop a trailing comma or a dangling `"key":` fragment.
+  out = out.replace(/,\s*$/, "").replace(/,?\s*"[^"]*"\s*:\s*$/, "");
+  if (!stack.length) return out;
+  return out + stack.reverse().join("");
+}
+
 export function parseJudgeResponse(
   raw: string,
   judge?: JudgeConfig,
@@ -152,14 +194,27 @@ export function parseJudgeResponse(
     : DEFAULT_TIE_THRESHOLD;
   const stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, "");
   const start = stripped.indexOf("{");
+  if (start === -1) return null;
   const end = stripped.lastIndexOf("}");
-  if (start === -1 || end <= start) return null;
-  let data: Record<string, unknown>;
-  try {
-    data = JSON.parse(stripped.slice(start, end + 1)) as Record<string, unknown>;
-  } catch {
-    return null;
+  let data: Record<string, unknown> | null = null;
+  if (end > start) {
+    try {
+      data = JSON.parse(stripped.slice(start, end + 1)) as Record<string, unknown>;
+    } catch {
+      data = null;
+    }
   }
+  if (!data) {
+    // Streaming / truncated output: try to render what has arrived so far.
+    const repaired = repairPartialJson(stripped.slice(start));
+    if (!repaired) return null;
+    try {
+      data = JSON.parse(repaired) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
 
   const side = (key: Side) => {
     const block = (data[key] ?? {}) as Record<string, unknown>;
@@ -336,15 +391,24 @@ export async function runLiveJudge(
   onChunk?: (raw: string) => void,
   interim = false,
   language: DebateLanguage = "en",
+  /** Fired as the judge's JSON streams in, with a best-effort partial scorecard. */
+  onPartial?: (partial: JudgeScorecard) => void,
 ): Promise<{ scorecard: JudgeScorecard | null; raw: string }> {
   const payload = buildJudgeMessages(judge, topic, messages, names, interim, language);
 
   let raw = "";
+  let lastEmit = 0;
   for await (const chunk of streamChat(toDebaterConfig(judge), payload, signal)) {
     if (signal?.aborted) break;
     raw += chunk.content;
     if (chunk.raw) onChunk?.(chunk.raw);
+    if (onPartial && !chunk.done && raw.length - lastEmit > 40) {
+      lastEmit = raw.length;
+      const partial = parseJudgeResponse(raw, judge, interim, messages.length);
+      if (partial) onPartial({ ...partial, streaming: true });
+    }
     if (chunk.done) break;
   }
   return { scorecard: parseJudgeResponse(raw, judge, interim, messages.length), raw };
 }
+
