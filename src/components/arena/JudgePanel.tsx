@@ -109,6 +109,7 @@ function SideCard({
   scale,
   maxTotal,
   weights,
+  rtl = false,
 }: {
   side: Side;
   name: string;
@@ -117,6 +118,7 @@ function SideCard({
   scale: number;
   maxTotal: number;
   weights?: Record<string, number>;
+  rtl?: boolean;
 }) {
   const accent = side === "alpha" ? "text-alpha" : "text-beta";
   return (
@@ -134,7 +136,13 @@ function SideCard({
         <div>
           <p className={cn("text-sm font-semibold", accent)}>{name}</p>
           <p className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
-            {side === "alpha" ? "For the resolution" : "Against the resolution"}
+            {rtl
+              ? side === "alpha"
+                ? "مؤيد للطرح"
+                : "معارض للطرح"
+              : side === "alpha"
+                ? "For the resolution"
+                : "Against the resolution"}
           </p>
         </div>
         <div className="text-right">
@@ -155,13 +163,19 @@ function SideCard({
             side={side}
             scale={scale}
             weight={weights?.[c] ?? 1}
+            rtl={rtl}
           />
 
         ))}
       </div>
 
       {score.summary && (
-        <p className="text-xs leading-relaxed text-muted-foreground">{score.summary}</p>
+        <p
+          dir={rtl ? "rtl" : "ltr"}
+          className={cn("text-xs leading-relaxed text-muted-foreground", rtl && "text-right")}
+        >
+          {score.summary}
+        </p>
       )}
     </div>
   );
