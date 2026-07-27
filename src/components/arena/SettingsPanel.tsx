@@ -15,7 +15,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EndpointsSection } from "@/components/arena/EndpointsSection";
 import { listModels } from "@/lib/debate/ollamaClient";
+
 import { TONE_PRESETS } from "@/lib/debate/presets";
 import type { ArenaSettings, DebaterConfig, ExecutionMode, Side } from "@/lib/debate/types";
 import { cn } from "@/lib/utils";
