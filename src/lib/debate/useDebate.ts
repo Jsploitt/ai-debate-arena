@@ -13,7 +13,9 @@ import type {
   DebaterConfig,
   LogEntry,
   LogKind,
+  JudgeScorecard,
   Side,
+
   SpeakerStatus,
   Telemetry,
 } from "./types";
