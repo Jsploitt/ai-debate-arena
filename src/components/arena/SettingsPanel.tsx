@@ -167,8 +167,11 @@ export function SettingsPanel({
 }) {
   return (
     <div className="space-y-6">
+      <EndpointsSection settings={settings} onChange={onChange} />
+
       <div className="space-y-2">
         <Label className="text-xs tracking-[0.14em] uppercase">Execution mode</Label>
+
         <Select
           value={settings.mode}
           onValueChange={(mode) => onChange({ mode: mode as ExecutionMode })}
