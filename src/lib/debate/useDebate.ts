@@ -73,6 +73,9 @@ export function useDebate(settings: ArenaSettings) {
     beta: null,
   });
   const [contextTokens, setContextTokens] = useState(0);
+  const [scorecard, setScorecard] = useState<JudgeScorecard | null>(null);
+  const [judging, setJudging] = useState(false);
+
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
