@@ -53,6 +53,7 @@ function parseLine(line: string): StreamChunk | null {
       message?: { content?: string };
       response?: string;
       done?: boolean;
+      model?: string;
       eval_count?: number;
       prompt_eval_count?: number;
       choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
@@ -63,6 +64,7 @@ function parseLine(line: string): StreamChunk | null {
     return {
       content,
       done,
+      model: json.model,
       evalCount: json.eval_count,
       promptEvalCount: json.prompt_eval_count,
       raw: payload,
@@ -70,6 +72,27 @@ function parseLine(line: string): StreamChunk | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Match a configured model name against the models actually installed on the
+ * local runtime. Handles the `llama3` vs `llama3:latest` tag mismatch and falls
+ * back to the first installed model so the UI never shows a phantom name.
+ */
+export function resolveModelName(configured: string, available: string[]): string | null {
+  if (!available.length) return null;
+  const want = configured.trim().toLowerCase();
+  if (!want) return available[0];
+  const exact = available.find((m) => m.toLowerCase() === want);
+  if (exact) return exact;
+  const tagged = available.find((m) => m.toLowerCase() === `${want}:latest`);
+  if (tagged) return tagged;
+  const base = available.find((m) => m.toLowerCase().split(":")[0] === want.split(":")[0]);
+  if (base) return base;
+  const partial = available.find(
+    (m) => m.toLowerCase().includes(want) || want.includes(m.toLowerCase().split(":")[0]),
+  );
+  return partial ?? available[0];
 }
 
 export async function* streamChat(
