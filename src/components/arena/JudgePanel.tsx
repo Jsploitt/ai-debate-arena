@@ -96,7 +96,15 @@ function ScoreRow({
         />
       </div>
       {reason && (
-        <p className="text-[11px] leading-snug text-muted-foreground/90 italic">{reason}</p>
+        <p
+          dir={rtl ? "rtl" : "ltr"}
+          className={cn(
+            "text-[11px] leading-snug text-muted-foreground/90 italic",
+            rtl && "text-right",
+          )}
+        >
+          {reason}
+        </p>
       )}
     </div>
   );
