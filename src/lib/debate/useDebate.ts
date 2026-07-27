@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { checkHealth, streamChat } from "./ollamaClient";
+import { checkHealth, listModels, resolveModelName, streamChat } from "./ollamaClient";
 import { simulateStream, simulatedTurnText } from "./simulation";
 import { buildRequestBody } from "./ollamaClient";
 import { runLiveJudge, simulateJudge } from "./judge";
@@ -21,6 +21,9 @@ import type {
 } from "./types";
 
 export type Phase = "idle" | "running" | "paused" | "finished";
+
+/** A model slot in the arena: the two debaters and the judge. */
+export type Slot = Side | "judge";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -75,6 +78,25 @@ export function useDebate(settings: ArenaSettings) {
   const [contextTokens, setContextTokens] = useState(0);
   const [scorecard, setScorecard] = useState<JudgeScorecard | null>(null);
   const [judging, setJudging] = useState(false);
+  // Model names as reported by the local runtimes actually serving each slot.
+  const [resolvedModels, setResolvedModels] = useState<Record<Slot, string | null>>({
+    alpha: null,
+    beta: null,
+    judge: null,
+  });
+  const [availableModels, setAvailableModels] = useState<Record<Slot, string[]>>({
+    alpha: [],
+    beta: [],
+    judge: [],
+  });
+  const resolvedRef = useRef<Record<Slot, string | null>>({ alpha: null, beta: null, judge: null });
+  const setResolved = useCallback((slot: Slot, model: string | null) => {
+    if (!model || resolvedRef.current[slot] === model) return;
+    resolvedRef.current = { ...resolvedRef.current, [slot]: model };
+    setResolvedModels((prev) => ({ ...prev, [slot]: model }));
+  }, []);
+
+
 
 
   const settingsRef = useRef(settings);
@@ -104,8 +126,30 @@ export function useDebate(settings: ArenaSettings) {
       checkHealth(s.beta.endpoint),
     ]);
     setHealth({ alpha: a ? "online" : "offline", beta: b ? "online" : "offline" });
+
+    // Ask each reachable runtime which models it actually serves, and bind the
+    // configured name to a real installed model.
+    const slots: Array<{ slot: Slot; endpoint: string; configured: string; up: boolean }> = [
+      { slot: "alpha", endpoint: s.alpha.endpoint, configured: s.alpha.model, up: a },
+      { slot: "beta", endpoint: s.beta.endpoint, configured: s.beta.model, up: b },
+      { slot: "judge", endpoint: s.judge.endpoint, configured: s.judge.model, up: a || b },
+    ];
+    const lists = await Promise.all(
+      slots.map((x) => (x.up ? listModels(x.endpoint) : Promise.resolve([]))),
+    );
+    const nextAvailable: Record<Slot, string[]> = { alpha: [], beta: [], judge: [] };
+    slots.forEach((x, i) => {
+      nextAvailable[x.slot] = lists[i];
+      const resolved = resolveModelName(x.configured, lists[i]);
+      if (resolved) setResolved(x.slot, resolved);
+      else {
+        resolvedRef.current = { ...resolvedRef.current, [x.slot]: null };
+        setResolvedModels((prev) => ({ ...prev, [x.slot]: null }));
+      }
+    });
+    setAvailableModels(nextAvailable);
     return { alpha: a, beta: b };
-  }, []);
+  }, [setResolved]);
 
   useEffect(() => {
     void refreshHealth();
@@ -117,7 +161,10 @@ export function useDebate(settings: ArenaSettings) {
     async (index: number) => {
       const s = settingsRef.current;
       const side: Side = index % 2 === 0 ? "alpha" : "beta";
-      const config = side === "alpha" ? s.alpha : s.beta;
+      const baseConfig = side === "alpha" ? s.alpha : s.beta;
+      // Use the model the local runtime actually serves, when we have detected one.
+      const detected = resolvedRef.current[side];
+      const config: DebaterConfig = detected ? { ...baseConfig, model: detected } : baseConfig;
       const round = Math.floor(index / 2) + 1;
       const topicValue = topicRef.current;
 
@@ -202,6 +249,7 @@ export function useDebate(settings: ArenaSettings) {
           if (chunkCount % 6 === 0 || chunk.done) {
             log("chunk", side, chunk.raw);
           }
+          if (chunk.model) setResolved(side, chunk.model);
           if (chunk.evalCount) evalCount = chunk.evalCount;
           if (chunk.promptEvalCount) promptTokens = chunk.promptEvalCount;
           if (chunk.done) break;
@@ -265,7 +313,7 @@ export function useDebate(settings: ArenaSettings) {
       turnRef.current = index + 1;
       setTurnIndex(index + 1);
     },
-    [log],
+    [log, setResolved],
   );
 
   const usingSimulationRef = useRef(usingSimulation);
@@ -297,18 +345,28 @@ export function useDebate(settings: ArenaSettings) {
 
       if (!usingSimulationRef.current) {
         try {
+          const judgeConfig = resolvedRef.current.judge
+            ? { ...s.judge, model: resolvedRef.current.judge }
+            : s.judge;
           log(
             "request",
             "system",
-            `POST ${s.judge.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${s.judge.model} temperature=${s.judge.temperature}`,
+            `POST ${judgeConfig.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${judgeConfig.model} temperature=${judgeConfig.temperature}`,
           );
           const { scorecard: live, raw } = await runLiveJudge(
-            s.judge,
+            judgeConfig,
             topicRef.current,
             transcript,
             names,
             undefined,
-            undefined,
+            (rawChunk) => {
+              try {
+                const parsed = JSON.parse(rawChunk) as { model?: string };
+                if (parsed.model) setResolved("judge", parsed.model);
+              } catch {
+                /* non-JSON keepalive line */
+              }
+            },
             interim,
           );
           if (seq !== judgeSeqRef.current) return;
@@ -340,7 +398,7 @@ export function useDebate(settings: ArenaSettings) {
       );
       setJudging(false);
     },
-    [log],
+    [log, setResolved],
   );
 
   const loop = useCallback(async () => {
@@ -471,6 +529,8 @@ export function useDebate(settings: ArenaSettings) {
   }, []);
 
   return {
+    resolvedModels,
+    availableModels,
     topic,
     phase,
     messages,

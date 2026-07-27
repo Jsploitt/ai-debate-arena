@@ -120,8 +120,10 @@ function Arena() {
       <ArenaHeader
         alphaState={debate.health.alpha}
         betaState={debate.health.beta}
-        alphaModel={settings.alpha.model}
-        betaModel={settings.beta.model}
+        alphaModel={debate.resolvedModels.alpha ?? settings.alpha.model}
+        betaModel={debate.resolvedModels.beta ?? settings.beta.model}
+        judgeModel={debate.resolvedModels.judge ?? settings.judge.model}
+        judgeEnabled={settings.judge.enabled}
         simulation={debate.usingSimulation}
       />
 
