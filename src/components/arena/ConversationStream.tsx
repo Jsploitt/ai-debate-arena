@@ -1,5 +1,14 @@
-import { useEffect, useRef } from "react";
-import { ChevronRight, Gauge, Terminal, Timer } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ArrowDownToLine,
+  ChevronRight,
+  Gauge,
+  Pause,
+  Play,
+  Terminal,
+  Timer,
+} from "lucide-react";
+
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import type { DebateMessage } from "@/lib/debate/types";
