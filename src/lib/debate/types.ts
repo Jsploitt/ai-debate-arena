@@ -17,13 +17,40 @@ export interface DebaterConfig {
   tonePreset: string;
 }
 
+export interface JudgeConfig {
+  enabled: boolean;
+  endpoint: string;
+  model: string;
+  temperature: number;
+  systemPrompt: string;
+}
+
+export type JudgeCriterion = "Logic" | "Evidence" | "Rebuttal" | "Clarity" | "Persuasion";
+
+export interface JudgeSideScore {
+  scores: Record<JudgeCriterion, number>;
+  total: number;
+  summary: string;
+}
+
+export interface JudgeScorecard {
+  alpha: JudgeSideScore;
+  beta: JudgeSideScore;
+  winner: Side | "tie";
+  verdict: string;
+  simulated: boolean;
+  createdAt: number;
+}
+
 export interface ArenaSettings {
   alpha: DebaterConfig;
   beta: DebaterConfig;
   rounds: number;
   mode: ExecutionMode;
   contextWindow: number;
+  judge: JudgeConfig;
 }
+
 
 export interface Telemetry {
   ttftMs: number;
