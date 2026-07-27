@@ -18,17 +18,18 @@ function TelemetryCard({
 }) {
   return (
     <div className="arena-panel rounded-xl px-4 py-3">
-      <p className="flex items-center gap-1.5 text-xs tracking-[0.14em] text-muted-foreground uppercase">
-        <Icon className="size-3.5" />
+      <p className="flex items-center gap-1.5 truncate text-xs tracking-[0.14em] text-muted-foreground uppercase">
+        <Icon className="size-3.5 shrink-0" />
         {label}
       </p>
-      <p className={cn("mt-1 font-mono text-2xl font-semibold", accent)}>
+      <p className={cn("mt-1 truncate font-mono text-xl font-semibold", accent)}>
         {value}
-        {unit && <span className="ml-1 text-sm text-muted-foreground">{unit}</span>}
+        {unit && <span className="ml-1 text-xs text-muted-foreground">{unit}</span>}
       </p>
     </div>
   );
 }
+
 
 export function TelemetryPanel({
   telemetry,
