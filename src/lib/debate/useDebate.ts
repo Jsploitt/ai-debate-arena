@@ -75,6 +75,25 @@ export function useDebate(settings: ArenaSettings) {
   const [contextTokens, setContextTokens] = useState(0);
   const [scorecard, setScorecard] = useState<JudgeScorecard | null>(null);
   const [judging, setJudging] = useState(false);
+  // Model names as reported by the local runtimes actually serving each slot.
+  const [resolvedModels, setResolvedModels] = useState<Record<Slot, string | null>>({
+    alpha: null,
+    beta: null,
+    judge: null,
+  });
+  const [availableModels, setAvailableModels] = useState<Record<Slot, string[]>>({
+    alpha: [],
+    beta: [],
+    judge: [],
+  });
+  const resolvedRef = useRef<Record<Slot, string | null>>({ alpha: null, beta: null, judge: null });
+  const setResolved = useCallback((slot: Slot, model: string | null) => {
+    if (!model || resolvedRef.current[slot] === model) return;
+    resolvedRef.current = { ...resolvedRef.current, [slot]: model };
+    setResolvedModels((prev) => ({ ...prev, [slot]: model }));
+  }, []);
+
+
 
 
   const settingsRef = useRef(settings);
