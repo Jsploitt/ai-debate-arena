@@ -114,6 +114,15 @@ export function JudgePanel({
         <div className="flex items-center gap-2">
           <Gavel className="size-5 text-primary" />
           <h2 className="text-sm font-semibold tracking-[0.18em] uppercase">AI Judge Scorecard</h2>
+          {scorecard?.interim && (
+            <span className="flex items-center gap-1.5 rounded-full border border-primary/50 bg-primary/10 px-2 py-0.5 font-mono text-[10px] tracking-[0.14em] text-primary uppercase">
+              <Activity className="size-3 animate-pulse" />
+              Live · {scorecard.turnsScored} turns
+            </span>
+          )}
+          {judging && scorecard && (
+            <Loader2 className="size-3.5 animate-spin text-primary" aria-label="Updating score" />
+          )}
           {scorecard?.simulated && (
             <span className="rounded-full border border-border/70 px-2 py-0.5 font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
               Heuristic
@@ -138,8 +147,8 @@ export function JudgePanel({
 
       {!judging && !scorecard && (
         <p className="py-6 text-sm text-muted-foreground">
-          The judge scores Logic, Evidence, Rebuttal, Clarity and Persuasion for each side once the
-          debate finishes.
+          The judge scores Logic, Evidence, Rebuttal, Clarity and Persuasion for each side, updating
+          live after every round and explaining each score.
         </p>
       )}
 
@@ -165,12 +174,17 @@ export function JudgePanel({
               <Trophy className="size-4 text-primary" />
               <p className="font-mono text-xs tracking-[0.18em] text-primary uppercase">
                 {scorecard.winner === "tie"
-                  ? "Verdict — Draw"
-                  : `Verdict — ${scorecard.winner === "alpha" ? names.alpha : names.beta} wins`}
+                  ? scorecard.interim
+                    ? "Running score — Level"
+                    : "Verdict — Draw"
+                  : `${scorecard.interim ? "Leading" : "Verdict"} — ${scorecard.winner === "alpha" ? names.alpha : names.beta}${scorecard.interim ? " ahead" : " wins"}`}
               </p>
             </div>
             <p className="text-sm leading-relaxed text-foreground/85">{scorecard.verdict}</p>
           </div>
+        </div>
+      )}
+
         </div>
       )}
     </section>
