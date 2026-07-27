@@ -341,7 +341,7 @@ export function useDebate(settings: ArenaSettings) {
     async (interim = false) => {
       const s = settingsRef.current;
       const transcript = messagesRef.current.filter((m) => !m.streaming && m.content.trim());
-      if (!s.judge.enabled || transcript.length < 2 || !topicRef.current) return;
+      if (!s.judge.enabled || transcript.length < 1 || !topicRef.current) return;
 
       const seq = ++judgeSeqRef.current;
       const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
