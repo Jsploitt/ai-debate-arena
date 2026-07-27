@@ -1,4 +1,4 @@
-import { JUDGE_SYSTEM_PROMPT } from "./judge";
+import { DEFAULT_JUDGE_SCALE, DEFAULT_JUDGE_WEIGHTS, DEFAULT_TIE_THRESHOLD, JUDGE_SYSTEM_PROMPT } from "./judge";
 import type { ArenaSettings, DebateLanguage, DebaterConfig, JudgeConfig } from "./types";
 
 
@@ -53,6 +53,10 @@ const judge: JudgeConfig = {
   model: "llama3",
   temperature: 0.2,
   systemPrompt: JUDGE_SYSTEM_PROMPT,
+  weights: { ...DEFAULT_JUDGE_WEIGHTS },
+  scale: DEFAULT_JUDGE_SCALE,
+  tieThreshold: DEFAULT_TIE_THRESHOLD,
+  rules: "",
 };
 
 export const DEFAULT_SETTINGS: ArenaSettings = {
@@ -104,7 +108,11 @@ export function loadSettings(): ArenaSettings {
       ...parsed,
       alpha: { ...DEFAULT_SETTINGS.alpha, ...(parsed.alpha ?? {}) },
       beta: { ...DEFAULT_SETTINGS.beta, ...(parsed.beta ?? {}) },
-      judge: { ...DEFAULT_SETTINGS.judge, ...(parsed.judge ?? {}) },
+      judge: {
+        ...DEFAULT_SETTINGS.judge,
+        ...(parsed.judge ?? {}),
+        weights: { ...DEFAULT_JUDGE_WEIGHTS, ...(parsed.judge?.weights ?? {}) },
+      },
       language: parsed.language ?? DEFAULT_SETTINGS.language,
 
     };

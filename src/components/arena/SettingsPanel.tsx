@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EndpointsSection } from "@/components/arena/EndpointsSection";
+import { DEFAULT_JUDGE_WEIGHTS, JUDGE_CRITERIA } from "@/lib/debate/judge";
+
 import { listModels } from "@/lib/debate/ollamaClient";
 
 import { TONE_PRESETS } from "@/lib/debate/presets";
@@ -284,6 +286,99 @@ export function SettingsPanel({
             />
           </div>
 
+          <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs tracking-[0.14em] uppercase">Criteria weights</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-[11px]"
+                onClick={() =>
+                  onChange({ judge: { ...settings.judge, weights: { ...DEFAULT_JUDGE_WEIGHTS } } })
+                }
+              >
+                Reset
+              </Button>
+            </div>
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              Higher weight = bigger impact on the final total. Set a weight to 0 to drop a
+              criterion from scoring.
+            </p>
+            {JUDGE_CRITERIA.map((c) => {
+              const weight = settings.judge.weights?.[c] ?? 1;
+              return (
+                <div key={c} className="space-y-1.5">
+                  <Label className="flex justify-between text-[11px] tracking-[0.12em] uppercase">
+                    {c}
+                    <span className={cn("font-mono", weight === 0 && "text-muted-foreground")}>
+                      ×{weight.toFixed(1)}
+                    </span>
+                  </Label>
+                  <Slider
+                    min={0}
+                    max={3}
+                    step={0.1}
+                    value={[weight]}
+                    onValueChange={([w]) =>
+                      onChange({
+                        judge: {
+                          ...settings.judge,
+                          weights: { ...settings.judge.weights, [c]: w },
+                        },
+                      })
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex justify-between text-xs tracking-[0.14em] uppercase">
+              Max score per criterion <span className="font-mono">{settings.judge.scale}</span>
+            </Label>
+            <Slider
+              min={5}
+              max={100}
+              step={5}
+              value={[settings.judge.scale]}
+              onValueChange={([scale]) => onChange({ judge: { ...settings.judge, scale } })}
+            />
+            <p className="font-mono text-[10px] text-muted-foreground">
+              Max weighted total per side: {(settings.judge.scale * JUDGE_CRITERIA.length).toFixed(0)}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex justify-between text-xs tracking-[0.14em] uppercase">
+              Draw threshold{" "}
+              <span className="font-mono">{settings.judge.tieThreshold.toFixed(1)} pts</span>
+            </Label>
+            <Slider
+              min={0}
+              max={5}
+              step={0.1}
+              value={[settings.judge.tieThreshold]}
+              onValueChange={([tieThreshold]) =>
+                onChange({ judge: { ...settings.judge, tieThreshold } })
+              }
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Totals closer than this are declared a draw.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs tracking-[0.14em] uppercase">House scoring rules</Label>
+            <Textarea
+              rows={4}
+              value={settings.judge.rules}
+              onChange={(e) => onChange({ judge: { ...settings.judge, rules: e.target.value } })}
+              className="font-mono text-xs"
+              placeholder="e.g. Penalise unsourced statistics. Reward concessions that sharpen the debate."
+            />
+          </div>
+
           <div className="space-y-2">
             <Label className="text-xs tracking-[0.14em] uppercase">Judging rubric prompt</Label>
             <Textarea
@@ -295,6 +390,7 @@ export function SettingsPanel({
               className="font-mono text-xs"
             />
           </div>
+
         </TabsContent>
       </Tabs>
 
