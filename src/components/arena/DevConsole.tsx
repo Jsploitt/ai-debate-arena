@@ -102,13 +102,18 @@ const KIND_COLOR: Record<LogEntry["kind"], string> = {
 };
 
 export function HttpMonitor({ logs }: { logs: LogEntry[] }) {
-  const endRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
+    const el = boxRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [logs]);
 
   return (
-    <div className="arena-scroll h-72 overflow-y-auto rounded-xl border border-border bg-background/80 p-3 font-mono text-xs leading-relaxed">
+    <div
+      ref={boxRef}
+      className="arena-scroll h-72 overflow-y-auto overscroll-contain rounded-xl border border-border bg-background/80 p-3 font-mono text-xs leading-relaxed"
+    >
+
       {logs.length === 0 && (
         <p className="text-muted-foreground">
           $ awaiting traffic — start a debate to stream live HTTP activity…
