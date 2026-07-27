@@ -75,17 +75,18 @@ function Arena() {
       }),
       ...(debate.scorecard
         ? [
-            `## AI Judge Scorecard${debate.scorecard.simulated ? " (heuristic)" : ""}`,
+            `## AI Judge Scorecard${debate.scorecard.simulated ? " (heuristic)" : ""}${debate.scorecard.interim ? " — provisional (debate in progress)" : ""}`,
             ``,
-            `| Criterion | ${settings.alpha.name} | ${settings.beta.name} |`,
-            `| --- | --- | --- |`,
+            `| Criterion | ${settings.alpha.name} | Why | ${settings.beta.name} | Why |`,
+            `| --- | --- | --- | --- | --- |`,
             ...(Object.keys(debate.scorecard.alpha.scores) as Array<
               keyof typeof debate.scorecard.alpha.scores
             >).map(
               (c) =>
-                `| ${c} | ${debate.scorecard!.alpha.scores[c].toFixed(1)} | ${debate.scorecard!.beta.scores[c].toFixed(1)} |`,
+                `| ${c} | ${debate.scorecard!.alpha.scores[c].toFixed(1)} | ${debate.scorecard!.alpha.reasons?.[c] ?? ""} | ${debate.scorecard!.beta.scores[c].toFixed(1)} | ${debate.scorecard!.beta.reasons?.[c] ?? ""} |`,
             ),
-            `| **Total** | **${debate.scorecard.alpha.total.toFixed(1)}** | **${debate.scorecard.beta.total.toFixed(1)}** |`,
+            `| **Total** | **${debate.scorecard.alpha.total.toFixed(1)}** | | **${debate.scorecard.beta.total.toFixed(1)}** | |`,
+
             ``,
             `**Winner:** ${
               debate.scorecard.winner === "tie"
