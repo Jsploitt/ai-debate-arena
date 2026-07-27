@@ -398,7 +398,7 @@ export function useDebate(settings: ArenaSettings) {
       );
       setJudging(false);
     },
-    [log],
+    [log, setResolved],
   );
 
   const loop = useCallback(async () => {
