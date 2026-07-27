@@ -20,12 +20,15 @@ export const JUDGE_CRITERIA: JudgeCriterion[] = [
 export const JUDGE_SYSTEM_PROMPT = [
   "You are an impartial AI debate judge at a live technology showcase.",
   "Score both debaters on five criteria, each from 0 to 10: Logic, Evidence, Rebuttal, Clarity, Persuasion.",
+  "For EVERY criterion you must also give a short (max 18 words) reason citing something specific the debater actually said.",
   "Be discriminating — do not give both sides identical scores unless the debate was genuinely tied.",
+  "If the debate is still in progress you will be told so: score only what has been said so far.",
   "Reply with ONLY a JSON object, no prose and no markdown fences, in exactly this shape:",
-  '{"alpha":{"Logic":0,"Evidence":0,"Rebuttal":0,"Clarity":0,"Persuasion":0,"summary":"one sentence"},',
-  '"beta":{"Logic":0,"Evidence":0,"Rebuttal":0,"Clarity":0,"Persuasion":0,"summary":"one sentence"},',
+  '{"alpha":{"Logic":{"score":0,"reason":"why"},"Evidence":{"score":0,"reason":"why"},"Rebuttal":{"score":0,"reason":"why"},"Clarity":{"score":0,"reason":"why"},"Persuasion":{"score":0,"reason":"why"},"summary":"one sentence"},',
+  '"beta":{"Logic":{"score":0,"reason":"why"},"Evidence":{"score":0,"reason":"why"},"Rebuttal":{"score":0,"reason":"why"},"Clarity":{"score":0,"reason":"why"},"Persuasion":{"score":0,"reason":"why"},"summary":"one sentence"},',
   '"winner":"alpha|beta|tie","verdict":"two sentences explaining the decision"}',
 ].join("\n");
+
 
 function toDebaterConfig(judge: JudgeConfig): DebaterConfig {
   return {
