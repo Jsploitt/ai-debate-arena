@@ -381,6 +381,7 @@ export function useDebate(settings: ArenaSettings) {
               }
             },
             interim,
+            s.language,
           );
           if (seq !== judgeSeqRef.current) return;
           if (live) {
