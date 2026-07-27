@@ -109,16 +109,37 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     background-image:
-      radial-gradient(circle at 12% 0%, oklch(0.62 0.16 246 / 0.22), transparent 48%),
-      radial-gradient(circle at 88% 0%, oklch(0.62 0.15 156 / 0.18), transparent 48%),
-      linear-gradient(oklch(1 0 0 / 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, oklch(1 0 0 / 0.02) 1px, transparent 1px);
+      /* Dell blue corona */
+      radial-gradient(ellipse 70% 55% at 10% -5%, oklch(0.62 0.16 246 / 0.24), transparent 60%),
+      /* Saudi green corona */
+      radial-gradient(ellipse 70% 55% at 90% -5%, oklch(0.6 0.15 156 / 0.2), transparent 60%),
+      /* green ground sweep, echoing the flag field */
+      radial-gradient(ellipse 120% 40% at 50% 108%, oklch(0.55 0.13 156 / 0.16), transparent 70%),
+      /* geometric arabesque lattice: interlocking diagonals */
+      repeating-linear-gradient(
+        45deg,
+        oklch(0.62 0.16 246 / 0.05) 0 1px,
+        transparent 1px 34px
+      ),
+      repeating-linear-gradient(
+        -45deg,
+        oklch(0.62 0.15 156 / 0.05) 0 1px,
+        transparent 1px 34px
+      ),
+      /* fine tech grid */
+      linear-gradient(oklch(1 0 0 / 0.018) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(1 0 0 / 0.018) 1px, transparent 1px);
     background-size:
       100% 100%,
       100% 100%,
+      100% 100%,
+      auto,
+      auto,
       44px 44px,
       44px 44px;
+    background-attachment: fixed;
   }
+
 }
 
 
