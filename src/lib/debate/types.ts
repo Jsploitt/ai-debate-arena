@@ -96,5 +96,7 @@ export interface StreamChunk {
   done: boolean;
   evalCount?: number;
   promptEvalCount?: number;
+  /** Model name reported by the local runtime for this response. */
+  model?: string;
   raw: string;
 }
