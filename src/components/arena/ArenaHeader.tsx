@@ -63,11 +63,13 @@ export function ArenaHeader({
   simulation: boolean;
 }) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border/70 bg-background/60 px-6 py-4 backdrop-blur">
+    <header className="arena-geo relative flex flex-wrap items-center justify-between gap-4 border-b border-border/70 bg-background/60 px-6 py-4 backdrop-blur">
+      <div className="arena-flag-rule pointer-events-none absolute inset-x-0 top-0" />
       <div className="flex items-center gap-4">
-        <div className="relative grid size-11 place-items-center rounded-xl border border-primary/40 bg-primary/10">
+        <div className="relative grid size-11 place-items-center rounded-xl border border-primary/40 bg-gradient-to-br from-primary/20 to-accent/20">
           <Cpu className="size-6 text-primary" />
         </div>
+
         <div>
           <h1 className="text-2xl leading-tight font-semibold tracking-tight md:text-3xl">
             Dell Saudi Arabia <span className="text-muted-foreground">•</span>{" "}
