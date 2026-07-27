@@ -187,6 +187,7 @@ function Arena() {
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="arena-panel flex h-[52vh] min-h-[380px] flex-col overflow-hidden rounded-2xl p-4">
             <ConversationStream
+              language={settings.language}
               messages={debate.messages}
               names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
               topic={debate.topic}
