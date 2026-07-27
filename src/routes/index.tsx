@@ -178,6 +178,16 @@ function Arena() {
           </aside>
         </div>
 
+        <JudgePanel
+          scorecard={debate.scorecard}
+          judging={debate.judging}
+          names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
+          onJudge={() => void debate.judgeDebate()}
+          canJudge={debate.messages.length >= 2}
+        />
+
+
+
         <ControlDesk
           value={input}
           onValueChange={setInput}
