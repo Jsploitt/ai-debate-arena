@@ -227,5 +227,5 @@ export async function runLiveJudge(
     if (chunk.raw) onChunk?.(chunk.raw);
     if (chunk.done) break;
   }
-  return { scorecard: parseJudgeResponse(raw), raw };
+  return { scorecard: parseJudgeResponse(raw, interim, messages.length), raw };
 }
