@@ -23,7 +23,7 @@ function ScoreRow({
       <div className="h-1.5 overflow-hidden rounded-full bg-muted/50">
         <div
           className={cn(
-            "h-full rounded-full transition-[width] duration-700",
+            "h-full rounded-full transition-[width] duration-300",
             side === "alpha" ? "bg-alpha" : "bg-beta",
           )}
           style={{ width: `${(value / 10) * 100}%` }}
