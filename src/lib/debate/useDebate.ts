@@ -443,7 +443,10 @@ export function useDebate(settings: ArenaSettings) {
     if (turnRef.current >= total) {
       setPhase("finished");
       void judgeDebate();
+    } else if (turnRef.current % 2 === 0) {
+      void judgeDebate(true);
     }
+
   }, [runTurn, judgeDebate]);
 
   const reset = useCallback(() => {
