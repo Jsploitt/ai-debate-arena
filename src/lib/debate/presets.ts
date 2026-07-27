@@ -1,5 +1,5 @@
 import { JUDGE_SYSTEM_PROMPT } from "./judge";
-import type { ArenaSettings, DebaterConfig, JudgeConfig } from "./types";
+import type { ArenaSettings, DebateLanguage, DebaterConfig, JudgeConfig } from "./types";
 
 
 export const TONE_PRESETS: Record<string, string> = {
@@ -62,8 +62,27 @@ export const DEFAULT_SETTINGS: ArenaSettings = {
   mode: "auto",
   contextWindow: 8192,
   judge,
+  language: "en",
 };
 
+
+/** Language directive appended to every debater system prompt. */
+export const LANGUAGE_INSTRUCTION: Record<DebateLanguage, string> = {
+  en: "Write your argument in English.",
+  ar: "اكتب حجتك باللغة العربية الفصحى فقط. لا تستخدم الإنجليزية إطلاقاً، بما في ذلك محتوى وسوم <think>. حافظ على أسلوب خطابي قوي ومصطلحات تقنية دقيقة.",
+};
+
+export const LANGUAGE_LABEL: Record<DebateLanguage, string> = {
+  en: "English",
+  ar: "العربية",
+};
+
+export const SAMPLE_TOPICS_AR = [
+  "هل الحوسبة الطرفية أفضل من السحابة المركزية لإنترنت الأشياء؟",
+  "أخلاقيات الذكاء الاصطناعي: هل يجب أن تكون النماذج المتقدمة مفتوحة الأوزان؟",
+  "الحوسبة الكمية ستجعل الحوسبة الفائقة التقليدية بلا جدوى",
+  "المدن الذكية السعودية تحتاج بنية ذكاء اصطناعي محلية داخل الموقع",
+];
 
 export const SAMPLE_TOPICS = [
   "Is edge computing superior to centralized cloud for IoT?",
@@ -86,6 +105,7 @@ export function loadSettings(): ArenaSettings {
       alpha: { ...DEFAULT_SETTINGS.alpha, ...(parsed.alpha ?? {}) },
       beta: { ...DEFAULT_SETTINGS.beta, ...(parsed.beta ?? {}) },
       judge: { ...DEFAULT_SETTINGS.judge, ...(parsed.judge ?? {}) },
+      language: parsed.language ?? DEFAULT_SETTINGS.language,
 
     };
   } catch {
