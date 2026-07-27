@@ -221,7 +221,9 @@ export function simulateJudge(
   names: Record<Side, string>,
   judge?: JudgeConfig,
   interim = false,
+  language: DebateLanguage = "en",
 ): JudgeScorecard {
+  const ar = language === "ar";
   const weights = weightsOf(judge);
   const scale = scaleOf(judge);
   const tieThreshold = Number.isFinite(Number(judge?.tieThreshold))
