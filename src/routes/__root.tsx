@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Dell AI Debate" },
+      { name: "description", content: "AI Debate Arena is a web application that enables two local LLMs to debate user-submitted topics." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Dell AI Debate" },
+      { property: "og:description", content: "AI Debate Arena is a web application that enables two local LLMs to debate user-submitted topics." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Dell AI Debate" },
+      { name: "twitter:description", content: "AI Debate Arena is a web application that enables two local LLMs to debate user-submitted topics." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1a93cab2-10c5-4683-b59d-0afba4d55a94/id-preview-3868f4d4--d3e711d0-129f-422f-83e2-7bd33b88a6af.lovable.app-1785175271888.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1a93cab2-10c5-4683-b59d-0afba4d55a94/id-preview-3868f4d4--d3e711d0-129f-422f-83e2-7bd33b88a6af.lovable.app-1785175271888.png" },
     ],
     links: [
       {
