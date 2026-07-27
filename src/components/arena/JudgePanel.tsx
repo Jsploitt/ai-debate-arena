@@ -1,9 +1,19 @@
-import { Gavel, Loader2, Trophy } from "lucide-react";
+import { Activity, Gavel, Loader2, Trophy } from "lucide-react";
 import { JUDGE_CRITERIA } from "@/lib/debate/judge";
 import type { JudgeScorecard, JudgeSideScore, Side } from "@/lib/debate/types";
 import { cn } from "@/lib/utils";
 
-function ScoreRow({ label, value, side }: { label: string; value: number; side: Side }) {
+function ScoreRow({
+  label,
+  value,
+  reason,
+  side,
+}: {
+  label: string;
+  value: number;
+  reason?: string;
+  side: Side;
+}) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase">
@@ -19,9 +29,13 @@ function ScoreRow({ label, value, side }: { label: string; value: number; side: 
           style={{ width: `${(value / 10) * 100}%` }}
         />
       </div>
+      {reason && (
+        <p className="text-[11px] leading-snug text-muted-foreground/90 italic">{reason}</p>
+      )}
     </div>
   );
 }
+
 
 function SideCard({
   side,
