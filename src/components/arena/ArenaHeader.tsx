@@ -49,12 +49,17 @@ export function ArenaHeader({
   betaState,
   alphaModel,
   betaModel,
+  judgeModel,
+  judgeEnabled,
   simulation,
 }: {
   alphaState: ConnectionState;
   betaState: ConnectionState;
+  /** Model name reported by the runtime, falling back to the configured name. */
   alphaModel: string;
   betaModel: string;
+  judgeModel?: string;
+  judgeEnabled?: boolean;
   simulation: boolean;
 }) {
   return (
@@ -78,6 +83,13 @@ export function ArenaHeader({
       <div className="flex flex-wrap items-center gap-2">
         <StatusPill label="LLM Engine Alpha" model={alphaModel} state={alphaState} side="alpha" />
         <StatusPill label="LLM Engine Beta" model={betaModel} state={betaState} side="beta" />
+        {judgeEnabled && judgeModel && (
+          <div className="flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary">
+            <Gavel className="size-4" />
+            <span className="tracking-wide uppercase">AI Judge</span>
+            <span className="hidden font-mono text-xs opacity-80 md:inline">{judgeModel}</span>
+          </div>
+        )}
         <div
           className={cn(
             "flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold tracking-widest uppercase",
@@ -90,6 +102,7 @@ export function ArenaHeader({
           {simulation ? "Simulation Mode" : "Live Local API"}
         </div>
       </div>
+
     </header>
   );
 }
