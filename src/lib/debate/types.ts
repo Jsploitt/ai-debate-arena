@@ -59,6 +59,8 @@ export interface JudgeScorecard {
   maxTotal: number;
   /** Criterion weights used for this scorecard. */
   weights: Record<JudgeCriterion, number>;
+  /** True while the judge's own response is still streaming in (partial JSON). */
+  streaming?: boolean;
 }
 
 
