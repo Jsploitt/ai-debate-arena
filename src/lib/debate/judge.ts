@@ -18,6 +18,65 @@ export const JUDGE_CRITERIA: JudgeCriterion[] = [
   "Persuasion",
 ];
 
+export const DEFAULT_JUDGE_WEIGHTS: Record<JudgeCriterion, number> = {
+  Logic: 1,
+  Evidence: 1,
+  Rebuttal: 1,
+  Clarity: 1,
+  Persuasion: 1,
+};
+
+export const DEFAULT_JUDGE_SCALE = 10;
+export const DEFAULT_TIE_THRESHOLD = 0.4;
+
+function weightsOf(judge?: Pick<JudgeConfig, "weights">) {
+  const w = judge?.weights ?? DEFAULT_JUDGE_WEIGHTS;
+  const out = {} as Record<JudgeCriterion, number>;
+  for (const c of JUDGE_CRITERIA) {
+    const v = Number(w?.[c]);
+    out[c] = Number.isFinite(v) && v >= 0 ? v : 1;
+  }
+  return out;
+}
+
+function scaleOf(judge?: Pick<JudgeConfig, "scale">) {
+  const v = Number(judge?.scale);
+  return Number.isFinite(v) && v > 0 ? v : DEFAULT_JUDGE_SCALE;
+}
+
+/** Weighted total, normalised so the maximum stays scale x criteria count. */
+export function weightedTotal(
+  scores: Record<JudgeCriterion, number>,
+  weights: Record<JudgeCriterion, number>,
+) {
+  const totalWeight = JUDGE_CRITERIA.reduce((acc, c) => acc + weights[c], 0);
+  if (totalWeight <= 0) return 0;
+  const weighted = JUDGE_CRITERIA.reduce((acc, c) => acc + scores[c] * weights[c], 0);
+  return +((weighted / totalWeight) * JUDGE_CRITERIA.length).toFixed(1);
+}
+
+export function maxTotalFor(judge?: Pick<JudgeConfig, "scale">) {
+  return +(scaleOf(judge) * JUDGE_CRITERIA.length).toFixed(1);
+}
+
+/** Rubric text describing the operator-configured weights, scale and house rules. */
+export function rubricNote(judge: JudgeConfig): string {
+  const weights = weightsOf(judge);
+  const scale = scaleOf(judge);
+  const lines = [
+    `\n\nSCORING RULES (set by the event operator, follow them exactly):`,
+    `- Score every criterion from 0 to ${scale}.`,
+    `- Criterion importance weights: ${JUDGE_CRITERIA.map((c) => `${c} x${weights[c]}`).join(", ")}. Higher weight means that criterion matters more to the final result.`,
+  ];
+  const ignored = JUDGE_CRITERIA.filter((c) => weights[c] === 0);
+  if (ignored.length) lines.push(`- Ignore entirely (weight 0): ${ignored.join(", ")}. Still return 0 for them.`);
+  lines.push(
+    `- Declare a tie when the two weighted totals are within ${judge.tieThreshold ?? DEFAULT_TIE_THRESHOLD} points.`,
+  );
+  if (judge.rules?.trim()) lines.push(`- House rules: ${judge.rules.trim()}`);
+  return lines.join("\n");
+}
+
 export const JUDGE_SYSTEM_PROMPT = [
   "You are an impartial AI debate judge at a live technology showcase.",
   "Score both debaters on five criteria, each from 0 to 10: Logic, Evidence, Rebuttal, Clarity, Persuasion.",
@@ -63,7 +122,10 @@ export function buildJudgeMessages(
       ? "\n\nNOTE: the debate below is in Arabic. Read and score it in Arabic, but write your JSON reasons, summaries and verdict in English.\n"
       : "";
   return [
-    { role: "system", content: (judge.systemPrompt || JUDGE_SYSTEM_PROMPT) + languageNote },
+    {
+      role: "system",
+      content: (judge.systemPrompt || JUDGE_SYSTEM_PROMPT) + rubricNote(judge) + languageNote,
+    },
     {
       role: "user",
       content: `Resolution: "${topic}"\n\nALPHA = ${names.alpha} (argued FOR)\nBETA = ${names.beta} (argued AGAINST)\n\nTranscript:\n\n${transcript}\n\n${closing}`,
@@ -71,17 +133,23 @@ export function buildJudgeMessages(
   ];
 }
 
-function clamp(n: unknown): number {
+function clamp(n: unknown, scale = DEFAULT_JUDGE_SCALE): number {
   const v = typeof n === "number" ? n : Number(n);
-  if (!Number.isFinite(v)) return 5;
-  return Math.max(0, Math.min(10, Math.round(v * 10) / 10));
+  if (!Number.isFinite(v)) return scale / 2;
+  return Math.max(0, Math.min(scale, Math.round(v * 10) / 10));
 }
 
-function sum(scores: Record<JudgeCriterion, number>) {
-  return +JUDGE_CRITERIA.reduce((acc, c) => acc + scores[c], 0).toFixed(1);
-}
-
-export function parseJudgeResponse(raw: string, interim = false, turnsScored = 0): JudgeScorecard | null {
+export function parseJudgeResponse(
+  raw: string,
+  judge?: JudgeConfig,
+  interim = false,
+  turnsScored = 0,
+): JudgeScorecard | null {
+  const weights = weightsOf(judge);
+  const scale = scaleOf(judge);
+  const tieThreshold = Number.isFinite(Number(judge?.tieThreshold))
+    ? Number(judge?.tieThreshold)
+    : DEFAULT_TIE_THRESHOLD;
   const stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, "");
   const start = stripped.indexOf("{");
   const end = stripped.lastIndexOf("}");
@@ -101,10 +169,10 @@ export function parseJudgeResponse(raw: string, interim = false, turnsScored = 0
       const entry = block[c] ?? block[c.toLowerCase()];
       if (entry && typeof entry === "object") {
         const obj = entry as Record<string, unknown>;
-        scores[c] = clamp(obj.score ?? obj.value);
+        scores[c] = clamp(obj.score ?? obj.value, scale);
         reasons[c] = typeof obj.reason === "string" ? obj.reason : "";
       } else {
-        scores[c] = clamp(entry);
+        scores[c] = clamp(entry, scale);
         const alt = block[`${c.toLowerCase()}_reason`] ?? block[`${c}Reason`];
         reasons[c] = typeof alt === "string" ? alt : "";
       }
@@ -112,7 +180,7 @@ export function parseJudgeResponse(raw: string, interim = false, turnsScored = 0
     return {
       scores,
       reasons,
-      total: sum(scores),
+      total: weightedTotal(scores, weights),
       summary: typeof block.summary === "string" ? block.summary : "",
     };
   };
@@ -120,11 +188,12 @@ export function parseJudgeResponse(raw: string, interim = false, turnsScored = 0
   const alpha = side("alpha");
   const beta = side("beta");
   const declared = typeof data.winner === "string" ? data.winner.toLowerCase() : "";
+  const gap = Math.abs(alpha.total - beta.total);
   const winner: Side | "tie" =
-    declared === "alpha" || declared === "beta"
-      ? (declared as Side)
-      : alpha.total === beta.total
-        ? "tie"
+    gap < tieThreshold
+      ? "tie"
+      : declared === "alpha" || declared === "beta"
+        ? (declared as Side)
         : alpha.total > beta.total
           ? "alpha"
           : "beta";
@@ -138,6 +207,9 @@ export function parseJudgeResponse(raw: string, interim = false, turnsScored = 0
     createdAt: Date.now(),
     interim,
     turnsScored,
+    scale,
+    maxTotal: maxTotalFor(judge),
+    weights,
   };
 }
 
@@ -147,8 +219,15 @@ export function simulateJudge(
   topic: string,
   messages: DebateMessage[],
   names: Record<Side, string>,
+  judge?: JudgeConfig,
   interim = false,
 ): JudgeScorecard {
+  const weights = weightsOf(judge);
+  const scale = scaleOf(judge);
+  const tieThreshold = Number.isFinite(Number(judge?.tieThreshold))
+    ? Number(judge?.tieThreshold)
+    : DEFAULT_TIE_THRESHOLD;
+  const k = scale / DEFAULT_JUDGE_SCALE;
   const stats = (s: Side) => {
     const own = messages.filter((m) => m.side === s);
     const text = own.map((m) => m.content).join(" ");
@@ -167,11 +246,14 @@ export function simulateJudge(
     const t = stats(s);
     const name = names[s];
     const scores = {
-      Logic: clamp(6 + Math.min(2.5, t.unique / 90) + Math.min(1, t.turns / 4)),
-      Evidence: clamp(5.5 + Math.min(3.5, t.numbers / 3)),
-      Rebuttal: clamp(5.5 + Math.min(3.5, t.rebuttals / 4) + Math.min(0.8, t.questions / 3)),
-      Clarity: clamp(9.5 - Math.abs(t.avgSentence - 18) / 6),
-      Persuasion: clamp(6 + Math.min(3, t.words / 140)),
+      Logic: clamp(k * (6 + Math.min(2.5, t.unique / 90) + Math.min(1, t.turns / 4)), scale),
+      Evidence: clamp(k * (5.5 + Math.min(3.5, t.numbers / 3)), scale),
+      Rebuttal: clamp(
+        k * (5.5 + Math.min(3.5, t.rebuttals / 4) + Math.min(0.8, t.questions / 3)),
+        scale,
+      ),
+      Clarity: clamp(k * (9.5 - Math.abs(t.avgSentence - 18) / 6), scale),
+      Persuasion: clamp(k * (6 + Math.min(3, t.words / 140)), scale),
     } as Record<JudgeCriterion, number>;
     const reasons: Record<JudgeCriterion, string> = {
       Logic: `${t.unique} distinct terms across ${t.turns} turn(s) — ${scores.Logic >= 8 ? "argument chains stayed tight and non-repetitive" : "some claims were restated rather than advanced"}.`,
@@ -183,7 +265,7 @@ export function simulateJudge(
     return {
       scores,
       reasons,
-      total: sum(scores),
+      total: weightedTotal(scores, weights),
       summary:
         s === "alpha"
           ? `${names.alpha} built the affirmative case with steady structure and concrete framing across ${t.turns} turns.`
@@ -194,7 +276,11 @@ export function simulateJudge(
   const alpha = build("alpha");
   const beta = build("beta");
   const winner: Side | "tie" =
-    Math.abs(alpha.total - beta.total) < 0.4 ? "tie" : alpha.total > beta.total ? "alpha" : "beta";
+    Math.abs(alpha.total - beta.total) < tieThreshold
+      ? "tie"
+      : alpha.total > beta.total
+        ? "alpha"
+        : "beta";
 
   const lead = winner === "alpha" ? names.alpha : names.beta;
   const verdict = interim
@@ -214,6 +300,9 @@ export function simulateJudge(
     createdAt: Date.now(),
     interim,
     turnsScored: messages.length,
+    scale,
+    maxTotal: maxTotalFor(judge),
+    weights,
   };
 }
 
@@ -236,5 +325,5 @@ export async function runLiveJudge(
     if (chunk.raw) onChunk?.(chunk.raw);
     if (chunk.done) break;
   }
-  return { scorecard: parseJudgeResponse(raw, interim, messages.length), raw };
+  return { scorecard: parseJudgeResponse(raw, judge, interim, messages.length), raw };
 }
