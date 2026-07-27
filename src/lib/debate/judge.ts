@@ -155,7 +155,9 @@ export function simulateJudge(
     const words = text.split(/\s+/).filter(Boolean);
     const unique = new Set(words.map((w) => w.toLowerCase())).size;
     const numbers = (text.match(/\d/g) ?? []).length;
-    const rebuttals = (text.match(/\b(but|however|concede|your|you)\b/gi) ?? []).concat(text.match(/(لكن|غير أن|أُسلّم|أقر|موقفك|حجتك|تفنيد)/g) ?? []).length;
+    const rebuttals =
+      (text.match(/\b(but|however|concede|your|you)\b/gi)?.length ?? 0) +
+      (text.match(/(لكن|غير أن|أُسلّم|أقر|موقفك|حجتك|تفنيد)/g)?.length ?? 0);
     const questions = (text.match(/\?/g) ?? []).length;
     const avgSentence = words.length / Math.max(1, (text.match(/[.!?]/g) ?? []).length);
     return { words: words.length, unique, numbers, rebuttals, questions, avgSentence, turns: own.length };
