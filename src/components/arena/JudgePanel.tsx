@@ -184,12 +184,25 @@ export function JudgePanel({
         </button>
       </header>
 
-      {judging && !scorecard && (
-        <div className="flex items-center gap-3 py-8 text-sm text-muted-foreground">
-          <Loader2 className="size-5 animate-spin text-primary" />
-          The AI Judge is reading the transcript and scoring both debaters…
+      {judging && (
+        <div
+          className="mb-4 flex items-center gap-3 rounded-xl border border-primary/40 bg-primary/5 px-4 py-2.5"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="size-4 animate-spin text-primary" />
+          <p className="font-mono text-[11px] tracking-[0.14em] text-primary uppercase">
+            Judge is updating…
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {scorecard
+              ? "Re-reading the latest turns and adjusting each criterion."
+              : "Reading the transcript and scoring both debaters."}
+          </p>
         </div>
       )}
+
+      {judging && !scorecard && <JudgeSkeleton />}
 
       {!judging && !scorecard && (
         <p className="py-6 text-sm text-muted-foreground">
@@ -199,7 +212,8 @@ export function JudgePanel({
       )}
 
       {scorecard && (
-        <div className="space-y-4">
+        <div className={cn("space-y-4 transition-opacity", judging && "opacity-60")}>
+
           <div className="grid gap-3 md:grid-cols-2">
             <SideCard
               side="alpha"
