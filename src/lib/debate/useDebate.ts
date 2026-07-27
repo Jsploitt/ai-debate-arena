@@ -403,7 +403,7 @@ export function useDebate(settings: ArenaSettings) {
       }
 
       if (seq !== judgeSeqRef.current) return;
-      const simulated = simulateJudge(topicRef.current, transcript, names, s.judge, interim);
+      const simulated = simulateJudge(topicRef.current, transcript, names, s.judge, interim, s.language);
       setScorecard(simulated);
       log(
         "info",
