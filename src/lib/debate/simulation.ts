@@ -1,4 +1,4 @@
-import type { Side, StreamChunk } from "./types";
+import type { DebateLanguage, Side, StreamChunk } from "./types";
 
 interface ScriptedDebate {
   keywords: string[];
@@ -72,12 +72,36 @@ const GENERIC_BETA = [
   "<think>Close by offering the pragmatic alternative.</think>My position is not stagnation, it is sequencing. Adopt where the payoff is provable, hold where it is not, and stop treating a procurement decision as an identity. On {topic}, the negative case is simply the disciplined one.",
 ];
 
+
+const GENERIC_ALPHA_AR = [
+  "<think>أبدأ بتحديد المصطلحات حتى لا يتهرب الخصم من صلب الطرح.</think>لنحدد الطرح قبل أن نتجادل في الهامش: {topic}. موقفي مؤيد، وترتكز حجتي على ثلاثة معايير قابلة للقياس: التكلفة، والموثوقية، وزمن تحقيق القيمة. وكلها قابلة للاختبار، وهذا أكثر مما تقدمه البلاغة عادة.",
+  "<think>أعزز الموقف بالأدلة التشغيلية وأستبق الاعتراض المتوقع.</think>أقوى الأدلة تشغيلية بامتياز. المؤسسات التي التزمت مبكراً بهذا الاتجاه تسجل معدلات أعطال أقل ودورات نشر أقصر. أما الاعتراض المعتاد بأن ذلك ينجح في النطاقات الصغيرة فقط، فهو يخلط بين منحنى تبنٍّ مبكر وبين سقف نهائي.",
+  "<think>أقدم تنازلاً محدوداً لكسب المصداقية ثم أضغط.</think>أُسلّم بأن كلفة الانتقال حقيقية وكثيراً ما يُستهان بها. لكن كلفة هجرة تُدفع مرة واحدة وتُوزَّع على عقد كامل ليست حجة ضد الوجهة، بل حجة لتخطيط الطريق بإتقان.",
+  "<think>أختم بالإطار الاستراتيجي.</think>استراتيجياً، السؤال ليس هل يصبح هذا معياراً سائداً، بل هل تتبناه وهو ما يزال ميزة تنافسية أم بعد أن يصبح الحد الأدنى المتوقع. وفي {topic}، الموقف المؤيد هو ببساطة الموقف الأسبق.",
+];
+
+const GENERIC_BETA_AR = [
+  "<think>أرفض الإطار قبل مناقشة المضمون.</think>التعريف يقوم بعمل هائل نيابة عنك هنا. في {topic}، تبدأ الحجة المعارضة بملاحظة أن معاييرك الثلاثة اختيرت لأنها تجمّل نتيجتك. غيّر نافذة القياس وستنقلب الأفضلية رأساً على عقب.",
+  "<think>أهاجم قاعدة الأدلة بوصفها تحيز الناجين.</think>أدلتك التشغيلية هي تحيز الناجين مرتدياً معطف المختبر. نسمع عن المؤسسات التي نجحت التجربة لديها، أما التي تراجعت بهدوء فلا تنشر دراسات حالة. هذه ليست بيانات، بل قمع تسويقي مذيّل بالهوامش.",
+  "<think>أقبل التنازل ثم أوسّعه.</think>أنت تُقرّ بكلفة الانتقال، فلنسعّرها بأمانة: إعادة التأهيل، والأدوات، وثمانية عشر شهراً لا يتقن فيها فريقك النظام القديم ولا الجديد. تلك الفجوة هي المقبرة الحقيقية لأغلب هذه البرامج.",
+  "<think>أختم بطرح البديل العملي.</think>موقفي ليس الجمود، بل الترتيب الصحيح للأولويات. تبنَّ حيث يكون العائد قابلاً للإثبات، وتريّث حيث لا يكون، وكفّ عن التعامل مع قرار شراء كأنه هوية. في {topic}، الحجة المعارضة هي ببساطة الأكثر انضباطاً.",
+];
+
 function pickScript(topic: string) {
   const lower = topic.toLowerCase();
   return SCRIPTS.find((s) => s.keywords.some((k) => lower.includes(k)));
 }
 
-export function simulatedTurnText(topic: string, side: Side, turn: number): string {
+export function simulatedTurnText(
+  topic: string,
+  side: Side,
+  turn: number,
+  language: DebateLanguage = "en",
+): string {
+  if (language === "ar") {
+    const poolAr = side === "alpha" ? GENERIC_ALPHA_AR : GENERIC_BETA_AR;
+    return poolAr[turn % poolAr.length].replaceAll("{topic}", topic.replace(/[.。]$/, ""));
+  }
   const script = pickScript(topic);
   const pool = script
     ? side === "alpha"

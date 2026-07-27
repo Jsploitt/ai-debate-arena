@@ -48,6 +48,9 @@ export interface JudgeScorecard {
 }
 
 
+/** Language the debaters speak in. The UI chrome stays in English. */
+export type DebateLanguage = "en" | "ar";
+
 export interface ArenaSettings {
   alpha: DebaterConfig;
   beta: DebaterConfig;
@@ -55,6 +58,8 @@ export interface ArenaSettings {
   mode: ExecutionMode;
   contextWindow: number;
   judge: JudgeConfig;
+  /** Language the two debaters argue in ("en" default, "ar" for Arabic). */
+  language: DebateLanguage;
 }
 
 

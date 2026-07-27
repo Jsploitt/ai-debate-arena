@@ -6,6 +6,7 @@ import type {
   JudgeConfig,
   JudgeCriterion,
   JudgeScorecard,
+  DebateLanguage,
   Side,
 } from "./types";
 
@@ -49,6 +50,7 @@ export function buildJudgeMessages(
   messages: DebateMessage[],
   names: Record<Side, string>,
   interim = false,
+  language: DebateLanguage = "en",
 ): ChatMessage[] {
   const transcript = messages
     .map((m) => `[Round ${m.round}] ${names[m.side]} (${m.side.toUpperCase()}): ${m.content}`)
@@ -56,8 +58,12 @@ export function buildJudgeMessages(
   const closing = interim
     ? "The debate is STILL IN PROGRESS. Give a provisional running score for what has been said so far, with a short reason per criterion. JSON only."
     : "The debate is complete. Score it now, with a short reason per criterion. JSON only.";
+  const languageNote =
+    language === "ar"
+      ? "\n\nNOTE: the debate below is in Arabic. Read and score it in Arabic, but write your JSON reasons, summaries and verdict in English.\n"
+      : "";
   return [
-    { role: "system", content: judge.systemPrompt || JUDGE_SYSTEM_PROMPT },
+    { role: "system", content: (judge.systemPrompt || JUDGE_SYSTEM_PROMPT) + languageNote },
     {
       role: "user",
       content: `Resolution: "${topic}"\n\nALPHA = ${names.alpha} (argued FOR)\nBETA = ${names.beta} (argued AGAINST)\n\nTranscript:\n\n${transcript}\n\n${closing}`,
@@ -149,7 +155,9 @@ export function simulateJudge(
     const words = text.split(/\s+/).filter(Boolean);
     const unique = new Set(words.map((w) => w.toLowerCase())).size;
     const numbers = (text.match(/\d/g) ?? []).length;
-    const rebuttals = (text.match(/\b(but|however|concede|your|you)\b/gi) ?? []).length;
+    const rebuttals =
+      (text.match(/\b(but|however|concede|your|you)\b/gi)?.length ?? 0) +
+      (text.match(/(لكن|غير أن|أُسلّم|أقر|موقفك|حجتك|تفنيد)/g)?.length ?? 0);
     const questions = (text.match(/\?/g) ?? []).length;
     const avgSentence = words.length / Math.max(1, (text.match(/[.!?]/g) ?? []).length);
     return { words: words.length, unique, numbers, rebuttals, questions, avgSentence, turns: own.length };
@@ -217,8 +225,9 @@ export async function runLiveJudge(
   signal?: AbortSignal,
   onChunk?: (raw: string) => void,
   interim = false,
+  language: DebateLanguage = "en",
 ): Promise<{ scorecard: JudgeScorecard | null; raw: string }> {
-  const payload = buildJudgeMessages(judge, topic, messages, names, interim);
+  const payload = buildJudgeMessages(judge, topic, messages, names, interim, language);
 
   let raw = "";
   for await (const chunk of streamChat(toDebaterConfig(judge), payload, signal)) {

@@ -57,6 +57,7 @@ function Arena() {
       ``,
       `**Resolution:** ${debate.topic || "(none)"}`,
       `**Mode:** ${debate.usingSimulation ? "Simulation" : "Live Local API"}`,
+      `**Debate language:** ${settings.language === "ar" ? "Arabic" : "English"}`,
       `**Generated:** ${new Date().toLocaleString()}`,
       ``,
       ...debate.messages.flatMap((m) => {
@@ -187,6 +188,7 @@ function Arena() {
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="arena-panel flex h-[52vh] min-h-[380px] flex-col overflow-hidden rounded-2xl p-4">
             <ConversationStream
+              language={settings.language}
               messages={debate.messages}
               names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
               topic={debate.topic}
@@ -232,6 +234,8 @@ function Arena() {
             setInput("");
           }}
           onDownload={downloadTranscript}
+          language={settings.language}
+          onLanguageChange={(language) => updateSettings({ language })}
         />
       </main>
     </div>

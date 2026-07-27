@@ -11,14 +11,23 @@ import {
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import type { DebateMessage } from "@/lib/debate/types";
+import type { DebateLanguage, DebateMessage } from "@/lib/debate/types";
 
 function isHardHitting(text: string) {
   return /(wrong|fails|collapses|nonsense|moat|theatre|blow|dismantle|obsolete)/i.test(text);
 }
 
-function MessageBubble({ message, names }: { message: DebateMessage; names: Record<string, string> }) {
+function MessageBubble({
+  message,
+  names,
+  language = "en",
+}: {
+  message: DebateMessage;
+  names: Record<string, string>;
+  language?: DebateLanguage;
+}) {
   const isAlpha = message.side === "alpha";
+  const rtl = language === "ar";
   return (
     <div
       className={cn(
@@ -62,14 +71,20 @@ function MessageBubble({ message, names }: { message: DebateMessage; names: Reco
               Reasoning Path
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <pre className="arena-scroll mb-3 max-h-56 overflow-auto rounded-lg border border-border/70 bg-background/80 p-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-terminal">
+              <pre dir={rtl ? "rtl" : "ltr"} className="arena-scroll mb-3 max-h-56 overflow-auto rounded-lg border border-border/70 bg-background/80 p-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-terminal">
 {message.reasoning}
               </pre>
             </CollapsibleContent>
           </Collapsible>
         )}
 
-        <p className="text-[1.05rem] leading-relaxed text-foreground md:text-lg">
+        <p
+          dir={rtl ? "rtl" : "ltr"}
+          className={cn(
+            "text-[1.05rem] leading-relaxed text-foreground md:text-lg",
+            rtl && "text-right",
+          )}
+        >
           {message.content}
           {message.streaming && (
             <span className="ml-0.5 inline-block h-5 w-2 translate-y-0.5 animate-pulse bg-primary" />
@@ -84,10 +99,12 @@ export function ConversationStream({
   messages,
   names,
   topic,
+  language = "en",
 }: {
   messages: DebateMessage[];
   names: Record<string, string>;
   topic: string;
+  language?: DebateLanguage;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoFollow, setAutoFollow] = useState(false);
@@ -160,11 +177,15 @@ export function ConversationStream({
           </div>
         ) : (
           <>
-            <div className="mx-auto w-fit rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-center font-mono text-sm text-primary">
-              RESOLUTION: {topic}
+            <div
+              dir={language === "ar" ? "rtl" : "ltr"}
+              className="mx-auto w-fit rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-center font-mono text-sm text-primary"
+            >
+              {language === "ar" ? "الطرح: " : "RESOLUTION: "}
+              {topic}
             </div>
             {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} names={names} />
+              <MessageBubble key={message.id} message={message} names={names} language={language} />
             ))}
           </>
         )}

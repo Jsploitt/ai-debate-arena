@@ -1,7 +1,9 @@
 import { Download, Pause, Play, RotateCcw, SkipForward, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SAMPLE_TOPICS } from "@/lib/debate/presets";
+import { SAMPLE_TOPICS, SAMPLE_TOPICS_AR } from "@/lib/debate/presets";
+import { cn } from "@/lib/utils";
+import type { DebateLanguage } from "@/lib/debate/types";
 import type { Phase } from "@/lib/debate/useDebate";
 
 export function ControlDesk({
@@ -14,6 +16,8 @@ export function ControlDesk({
   onNextTurn,
   onReset,
   onDownload,
+  language,
+  onLanguageChange,
 }: {
   value: string;
   onValueChange: (v: string) => void;
@@ -24,8 +28,12 @@ export function ControlDesk({
   onNextTurn: () => void;
   onReset: () => void;
   onDownload: () => void;
+  language: DebateLanguage;
+  onLanguageChange: (lang: DebateLanguage) => void;
 }) {
   const running = phase === "running";
+  const isArabic = language === "ar";
+  const topics = isArabic ? SAMPLE_TOPICS_AR : SAMPLE_TOPICS;
 
   return (
     <div className="arena-panel space-y-3 rounded-2xl p-4">
@@ -37,8 +45,12 @@ export function ControlDesk({
             onKeyDown={(e) => {
               if (e.key === "Enter" && value.trim()) onStart();
             }}
-            placeholder="Enter the debate resolution…"
-            className="h-14 border-primary/40 bg-background/70 px-5 text-lg shadow-[0_0_30px_-14px_var(--primary)] focus-visible:ring-primary md:text-xl"
+            dir={isArabic ? "rtl" : "ltr"}
+            placeholder={isArabic ? "أدخل موضوع المناظرة…" : "Enter the debate resolution…"}
+            className={cn(
+              "h-14 border-primary/40 bg-background/70 px-5 text-lg shadow-[0_0_30px_-14px_var(--primary)] focus-visible:ring-primary md:text-xl",
+              isArabic && "text-right",
+            )}
           />
         </div>
 
@@ -85,12 +97,34 @@ export function ControlDesk({
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-xs tracking-[0.14em] text-muted-foreground uppercase">
+          Debate language:
+        </span>
+        <div className="flex overflow-hidden rounded-full border border-border/70">
+          {(["en", "ar"] as const).map((lang) => (
+            <button
+              key={lang}
+              type="button"
+              onClick={() => onLanguageChange(lang)}
+              aria-pressed={language === lang}
+              className={cn(
+                "px-3 py-1 text-xs font-medium transition-colors",
+                language === lang
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {lang === "en" ? "English" : "العربية"}
+            </button>
+          ))}
+        </div>
+        <span className="ml-2 font-mono text-xs tracking-[0.14em] text-muted-foreground uppercase">
           Suggested:
         </span>
-        {SAMPLE_TOPICS.map((topic) => (
+        {topics.map((topic) => (
           <button
             key={topic}
             onClick={() => onValueChange(topic)}
+            dir={isArabic ? "rtl" : "ltr"}
             className="rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
           >
             {topic}
