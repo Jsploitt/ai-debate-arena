@@ -29,6 +29,7 @@ export type JudgeCriterion = "Logic" | "Evidence" | "Rebuttal" | "Clarity" | "Pe
 
 export interface JudgeSideScore {
   scores: Record<JudgeCriterion, number>;
+  reasons: Record<JudgeCriterion, string>;
   total: number;
   summary: string;
 }
@@ -40,7 +41,12 @@ export interface JudgeScorecard {
   verdict: string;
   simulated: boolean;
   createdAt: number;
+  /** True while the debate is still running — this is a running, provisional score. */
+  interim: boolean;
+  /** Number of completed turns the scorecard was based on. */
+  turnsScored: number;
 }
+
 
 export interface ArenaSettings {
   alpha: DebaterConfig;
