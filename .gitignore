@@ -20,6 +20,9 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Workstation-specific model paths
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

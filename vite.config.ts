@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Override the Cloudflare default so `build` produces a plain Node server
+  // (.output/server/index.mjs) for the Docker image, instead of a CF Worker bundle.
+  nitro: {
+    preset: "node-server",
+  },
 });

@@ -1,0 +1,103 @@
+services:
+  ai-debate-arena:
+    build: .
+    image: ai-debate-arena:latest
+    container_name: ai-debate-arena
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  ollama-alpha:
+    build: ./docker/ollama
+    image: ai-debate-arena-ollama:latest
+    container_name: ollama-alpha
+    restart: unless-stopped
+    environment:
+      MODEL_NAME: nemotron3-nano-30b
+      MODEL_GGUF_PATH: /models/model.gguf
+      OLLAMA_ORIGINS: "*"
+      OLLAMA_CONTEXT_LENGTH: "8192"
+      OLLAMA_KEEP_ALIVE: "-1"
+    volumes:
+      - ${NEMOTRON_30B_GGUF}:/models/model.gguf:ro
+      - ollama_alpha_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 600s
+
+  ollama-beta:
+    build: ./docker/ollama
+    image: ai-debate-arena-ollama:latest
+    container_name: ollama-beta
+    restart: unless-stopped
+    environment:
+      MODEL_NAME: gemma-4-26b
+      MODEL_GGUF_PATH: /models/model.gguf
+      OLLAMA_ORIGINS: "*"
+      OLLAMA_CONTEXT_LENGTH: "8192"
+      OLLAMA_KEEP_ALIVE: "-1"
+    volumes:
+      - ${GEMMA_26B_GGUF}:/models/model.gguf:ro
+      - ollama_beta_data:/root/.ollama
+    ports:
+      - "11435:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 600s
+
+  ollama-judge:
+    build: ./docker/ollama
+    image: ai-debate-arena-ollama:latest
+    container_name: ollama-judge
+    restart: unless-stopped
+    environment:
+      MODEL_NAME: nemotron3-nano-4b
+      MODEL_GGUF_PATH: /models/model.gguf
+      OLLAMA_ORIGINS: "*"
+      OLLAMA_CONTEXT_LENGTH: "8192"
+      OLLAMA_KEEP_ALIVE: "-1"
+    volumes:
+      - ${NEMOTRON_4B_GGUF}:/models/model.gguf:ro
+      - ollama_judge_data:/root/.ollama
+    ports:
+      - "11436:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 600s
+
+volumes:
+  ollama_alpha_data:
+  ollama_beta_data:
+  ollama_judge_data:

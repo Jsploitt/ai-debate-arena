@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+dist-ssr
+.output
+.vinxi
+.tanstack
+.nitro
+*.log
+.vscode
+.idea
+.lovable

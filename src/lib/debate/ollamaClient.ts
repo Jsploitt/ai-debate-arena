@@ -34,6 +34,13 @@ export function buildRequestBody(config: DebaterConfig, messages: ChatMessage[])
     model: config.model,
     messages,
     stream: true,
+    // Some Ollama-served reasoning models (e.g. gemma4) mix native chain-of-
+    // thought into the visible answer instead of cleanly separating it, even
+    // when it's also echoed in `message.thinking`. Disabling native "think"
+    // mode makes all models rely solely on the app's own prompted <think>
+    // tag instruction (see THINKING_INSTRUCTION), which is what the UI
+    // actually parses — deterministic across model families.
+    think: false,
     options: {
       temperature: config.temperature,
       top_p: config.topP,
@@ -41,7 +48,19 @@ export function buildRequestBody(config: DebaterConfig, messages: ChatMessage[])
   };
 }
 
-function parseLine(line: string): StreamChunk | null {
+/** Tracks whether a `<think>` tag is currently open across chunks of one stream. */
+interface ThinkState {
+  open: boolean;
+}
+
+/**
+ * Ollama reports reasoning-model output as a separate `message.thinking`
+ * field rather than inline `<think>` tags. Re-inject it as `<think>…</think>`
+ * around the content stream so downstream reasoning extraction (which only
+ * looks for those tags) keeps working regardless of which shape the runtime
+ * used.
+ */
+function parseLine(line: string, thinkState: ThinkState): StreamChunk | null {
   let payload = line.trim();
   if (!payload) return null;
   if (payload.startsWith("data:")) payload = payload.slice(5).trim();
@@ -50,7 +69,7 @@ function parseLine(line: string): StreamChunk | null {
   }
   try {
     const json = JSON.parse(payload) as {
-      message?: { content?: string };
+      message?: { content?: string; thinking?: string };
       response?: string;
       done?: boolean;
       model?: string;
@@ -58,9 +77,28 @@ function parseLine(line: string): StreamChunk | null {
       prompt_eval_count?: number;
       choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
     };
-    const content =
+    const thinking = json.message?.thinking ?? "";
+    const answer =
       json.message?.content ?? json.response ?? json.choices?.[0]?.delta?.content ?? "";
     const done = Boolean(json.done) || Boolean(json.choices?.[0]?.finish_reason);
+
+    let content = "";
+    if (thinking) {
+      content += (thinkState.open ? "" : "<think>") + thinking;
+      thinkState.open = true;
+    }
+    if (answer) {
+      if (thinkState.open) {
+        content += "</think>";
+        thinkState.open = false;
+      }
+      content += answer;
+    }
+    if (done && thinkState.open) {
+      content += "</think>";
+      thinkState.open = false;
+    }
+
     return {
       content,
       done,
@@ -113,6 +151,7 @@ export async function* streamChat(
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
+  const thinkState: ThinkState = { open: false };
   let buffer = "";
 
   while (true) {
@@ -122,11 +161,11 @@ export async function* streamChat(
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
     for (const line of lines) {
-      const chunk = parseLine(line);
+      const chunk = parseLine(line, thinkState);
       if (chunk) yield chunk;
     }
   }
 
-  const tail = parseLine(buffer);
+  const tail = parseLine(buffer, thinkState);
   if (tail) yield tail;
 }

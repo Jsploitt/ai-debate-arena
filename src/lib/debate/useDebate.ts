@@ -53,8 +53,12 @@ function systemFor(
       : "You argue AGAINST the resolution.";
   return [
     config.systemPrompt.trim(),
-    `You are ${config.name} in a live two-model debate. ${stance}`,
+    `You are one of two debaters speaking live, out loud, on stage. ${stance}`,
     `Resolution: "${topic}"`,
+    "Speak in first person, directly and only as yourself — never in the third person, and never narrate or describe your own argument from the outside.",
+    'Do NOT write phrases like "Debater Alpha argues", "my rebuttal shows", "Alpha\'s case is" or any other self-referential label — those make you sound like a report about the debate, not a participant in it.',
+    "Talk straight to your opponent using \"you\"/\"your\", as if replying to what they just said, the way a real person would in a live argument. Never describe the debate's structure or rounds.",
+    "Never refer to your opponent by any name or label (not \"Beta\", \"Alpha\", \"my opponent\", \"Debater X\", etc.) — call them \"you\" every time, exactly like a real person arguing face to face never says the other person's debate title out loud.",
     "Respond with one focused argument. Never role-play the opponent. Never use bullet lists.",
     THINKING_INSTRUCTION[Math.min(config.thinkingLevel, THINKING_INSTRUCTION.length - 1)],
     LANGUAGE_INSTRUCTION[language],
@@ -319,8 +323,8 @@ export function useDebate(settings: ArenaSettings) {
         role: "user",
         content:
           s.language === "ar"
-            ? `${config.name} قال: ${spoken}\n\nفنّد هذا الطرح مباشرة وبالعربية.`
-            : `${config.name} argued: ${spoken}\n\nRebut this directly.`,
+            ? `قال خصمك للتو: ${spoken}\n\nرُدّ عليه مباشرة وبالعربية، مخاطباً إياه بـ"أنت"، دون ذكر اسمه أو لقبه.`
+            : `Your opponent just said: ${spoken}\n\nRespond to them directly, addressing them as "you" — do not refer to them by any name or label.`,
       });
 
       turnRef.current = index + 1;
