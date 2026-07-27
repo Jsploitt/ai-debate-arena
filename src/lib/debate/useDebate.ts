@@ -126,8 +126,30 @@ export function useDebate(settings: ArenaSettings) {
       checkHealth(s.beta.endpoint),
     ]);
     setHealth({ alpha: a ? "online" : "offline", beta: b ? "online" : "offline" });
+
+    // Ask each reachable runtime which models it actually serves, and bind the
+    // configured name to a real installed model.
+    const slots: Array<{ slot: Slot; endpoint: string; configured: string; up: boolean }> = [
+      { slot: "alpha", endpoint: s.alpha.endpoint, configured: s.alpha.model, up: a },
+      { slot: "beta", endpoint: s.beta.endpoint, configured: s.beta.model, up: b },
+      { slot: "judge", endpoint: s.judge.endpoint, configured: s.judge.model, up: a || b },
+    ];
+    const lists = await Promise.all(
+      slots.map((x) => (x.up ? listModels(x.endpoint) : Promise.resolve([]))),
+    );
+    const nextAvailable: Record<Slot, string[]> = { alpha: [], beta: [], judge: [] };
+    slots.forEach((x, i) => {
+      nextAvailable[x.slot] = lists[i];
+      const resolved = resolveModelName(x.configured, lists[i]);
+      if (resolved) setResolved(x.slot, resolved);
+      else {
+        resolvedRef.current = { ...resolvedRef.current, [x.slot]: null };
+        setResolvedModels((prev) => ({ ...prev, [x.slot]: null }));
+      }
+    });
+    setAvailableModels(nextAvailable);
     return { alpha: a, beta: b };
-  }, []);
+  }, [setResolved]);
 
   useEffect(() => {
     void refreshHealth();
