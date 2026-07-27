@@ -80,14 +80,28 @@ export function ConversationStream({
   names: Record<string, string>;
   topic: string;
 }) {
-  const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const el = scrollRef.current;
+    if (!el || !stickRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   return (
-    <div className="arena-scroll flex-1 space-y-4 overflow-y-auto px-1 py-2">
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="arena-scroll flex-1 space-y-4 overflow-y-auto overscroll-contain px-1 py-2"
+    >
+
       {messages.length === 0 ? (
         <div className="grid h-full min-h-56 place-items-center rounded-2xl border border-dashed border-border/70 text-center">
           <div className="max-w-lg px-6">
@@ -109,7 +123,7 @@ export function ConversationStream({
           ))}
         </>
       )}
-      <div ref={endRef} />
+      
     </div>
   );
 }
