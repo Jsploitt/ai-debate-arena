@@ -407,6 +407,7 @@ export function useDebate(settings: ArenaSettings) {
       setContextTokens(0);
       setLastTelemetry({ alpha: null, beta: null });
       setScorecard(null);
+      judgeSeqRef.current++;
       setJudging(false);
 
       log("info", "system", `Resolution accepted: "${trimmed}"`);
@@ -465,6 +466,7 @@ export function useDebate(settings: ArenaSettings) {
     setLastTelemetry({ alpha: null, beta: null });
     setContextTokens(0);
     setScorecard(null);
+    judgeSeqRef.current++;
     setJudging(false);
   }, []);
 
