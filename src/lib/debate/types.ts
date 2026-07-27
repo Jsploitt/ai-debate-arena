@@ -23,6 +23,14 @@ export interface JudgeConfig {
   model: string;
   temperature: number;
   systemPrompt: string;
+  /** Relative importance of each criterion (0 = ignored). */
+  weights: Record<JudgeCriterion, number>;
+  /** Maximum score a debater can get on a single criterion. */
+  scale: number;
+  /** Total-score gap below which the judge must declare a draw. */
+  tieThreshold: number;
+  /** Extra house rules appended to the judging prompt. */
+  rules: string;
 }
 
 export type JudgeCriterion = "Logic" | "Evidence" | "Rebuttal" | "Clarity" | "Persuasion";
@@ -45,6 +53,12 @@ export interface JudgeScorecard {
   interim: boolean;
   /** Number of completed turns the scorecard was based on. */
   turnsScored: number;
+  /** Max score per criterion used for this scorecard. */
+  scale: number;
+  /** Max weighted total a side could reach. */
+  maxTotal: number;
+  /** Criterion weights used for this scorecard. */
+  weights: Record<JudgeCriterion, number>;
 }
 
 
