@@ -3,13 +3,14 @@ import { checkHealth, listModels, resolveModelName, streamChat } from "./ollamaC
 import { simulateStream, simulatedTurnText } from "./simulation";
 import { buildRequestBody } from "./ollamaClient";
 import { runLiveJudge, simulateJudge } from "./judge";
-import { THINKING_INSTRUCTION } from "./presets";
+import { LANGUAGE_INSTRUCTION, THINKING_INSTRUCTION } from "./presets";
 
 import type {
   ArenaSettings,
   ChatMessage,
   ConnectionState,
   DebateMessage,
+  DebateLanguage,
   DebaterConfig,
   LogEntry,
   LogKind,
@@ -40,7 +41,12 @@ function splitReasoning(raw: string) {
   };
 }
 
-function systemFor(config: DebaterConfig, topic: string, side: Side) {
+function systemFor(
+  config: DebaterConfig,
+  topic: string,
+  side: Side,
+  language: DebateLanguage = "en",
+) {
   const stance =
     side === "alpha"
       ? "You argue FOR the resolution."
@@ -51,6 +57,7 @@ function systemFor(config: DebaterConfig, topic: string, side: Side) {
     `Resolution: "${topic}"`,
     "Respond with one focused argument. Never role-play the opponent. Never use bullet lists.",
     THINKING_INSTRUCTION[Math.min(config.thinkingLevel, THINKING_INSTRUCTION.length - 1)],
+    LANGUAGE_INSTRUCTION[language],
   ]
     .filter(Boolean)
     .join("\n");
@@ -174,12 +181,15 @@ export function useDebate(settings: ArenaSettings) {
       if (!opponentLast) {
         historyRef.current[side].push({
           role: "user",
-          content: `Open the debate on the resolution: "${topicValue}"`,
+          content:
+            s.language === "ar"
+              ? `افتتح المناظرة حول الطرح التالي: "${topicValue}"`
+              : `Open the debate on the resolution: "${topicValue}"`,
         });
       }
 
       const payload: ChatMessage[] = [
-        { role: "system", content: systemFor(config, topicValue, side) },
+        { role: "system", content: systemFor(config, topicValue, side, s.language) },
         ...historyRef.current[side],
       ];
 
@@ -223,7 +233,7 @@ export function useDebate(settings: ArenaSettings) {
       const iterator = live
         ? streamChat(config, payload, controller.signal)
         : simulateStream(
-            simulatedTurnText(topicValue, side, index >> 1),
+            simulatedTurnText(topicValue, side, index >> 1, s.language),
             config.model,
             controller.signal,
           );
@@ -259,7 +269,7 @@ export function useDebate(settings: ArenaSettings) {
         log("error", side, `${msg} — falling back to Simulation Mode. If this is a CORS error, restart Ollama with OLLAMA_ORIGINS="*".`);
         usingSimulationRef.current = true;
         setUsingSimulation(true);
-        const fallback = simulatedTurnText(topicValue, side, index >> 1);
+        const fallback = simulatedTurnText(topicValue, side, index >> 1, s.language);
         for await (const chunk of simulateStream(fallback, config.model, controller.signal)) {
           if (controller.signal.aborted) break;
           if (chunk.content) {
@@ -307,7 +317,10 @@ export function useDebate(settings: ArenaSettings) {
       const other: Side = side === "alpha" ? "beta" : "alpha";
       historyRef.current[other].push({
         role: "user",
-        content: `${config.name} argued: ${spoken}\n\nRebut this directly.`,
+        content:
+          s.language === "ar"
+            ? `${config.name} قال: ${spoken}\n\nفنّد هذا الطرح مباشرة وبالعربية.`
+            : `${config.name} argued: ${spoken}\n\nRebut this directly.`,
       });
 
       turnRef.current = index + 1;
