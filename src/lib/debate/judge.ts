@@ -391,15 +391,24 @@ export async function runLiveJudge(
   onChunk?: (raw: string) => void,
   interim = false,
   language: DebateLanguage = "en",
+  /** Fired as the judge's JSON streams in, with a best-effort partial scorecard. */
+  onPartial?: (partial: JudgeScorecard) => void,
 ): Promise<{ scorecard: JudgeScorecard | null; raw: string }> {
   const payload = buildJudgeMessages(judge, topic, messages, names, interim, language);
 
   let raw = "";
+  let lastEmit = 0;
   for await (const chunk of streamChat(toDebaterConfig(judge), payload, signal)) {
     if (signal?.aborted) break;
     raw += chunk.content;
     if (chunk.raw) onChunk?.(chunk.raw);
+    if (onPartial && !chunk.done && raw.length - lastEmit > 40) {
+      lastEmit = raw.length;
+      const partial = parseJudgeResponse(raw, judge, interim, messages.length);
+      if (partial) onPartial({ ...partial, streaming: true });
+    }
     if (chunk.done) break;
   }
   return { scorecard: parseJudgeResponse(raw, judge, interim, messages.length), raw };
 }
+
