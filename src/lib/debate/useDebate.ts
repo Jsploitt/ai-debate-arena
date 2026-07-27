@@ -161,7 +161,10 @@ export function useDebate(settings: ArenaSettings) {
     async (index: number) => {
       const s = settingsRef.current;
       const side: Side = index % 2 === 0 ? "alpha" : "beta";
-      const config = side === "alpha" ? s.alpha : s.beta;
+      const baseConfig = side === "alpha" ? s.alpha : s.beta;
+      // Use the model the local runtime actually serves, when we have detected one.
+      const detected = resolvedRef.current[side];
+      const config: DebaterConfig = detected ? { ...baseConfig, model: detected } : baseConfig;
       const round = Math.floor(index / 2) + 1;
       const topicValue = topicRef.current;
 
