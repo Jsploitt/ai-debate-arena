@@ -1,4 +1,6 @@
-import type { ArenaSettings, DebaterConfig } from "./types";
+import { JUDGE_SYSTEM_PROMPT } from "./judge";
+import type { ArenaSettings, DebaterConfig, JudgeConfig } from "./types";
+
 
 export const TONE_PRESETS: Record<string, string> = {
   Custom: "",
@@ -45,13 +47,23 @@ const beta: DebaterConfig = {
   systemPrompt: TONE_PRESETS.Aggressive,
 };
 
+const judge: JudgeConfig = {
+  enabled: true,
+  endpoint: "http://localhost:11434/api/chat",
+  model: "llama3",
+  temperature: 0.2,
+  systemPrompt: JUDGE_SYSTEM_PROMPT,
+};
+
 export const DEFAULT_SETTINGS: ArenaSettings = {
   alpha,
   beta,
   rounds: 4,
   mode: "auto",
   contextWindow: 8192,
+  judge,
 };
+
 
 export const SAMPLE_TOPICS = [
   "Is edge computing superior to centralized cloud for IoT?",
@@ -73,6 +85,8 @@ export function loadSettings(): ArenaSettings {
       ...parsed,
       alpha: { ...DEFAULT_SETTINGS.alpha, ...(parsed.alpha ?? {}) },
       beta: { ...DEFAULT_SETTINGS.beta, ...(parsed.beta ?? {}) },
+      judge: { ...DEFAULT_SETTINGS.judge, ...(parsed.judge ?? {}) },
+
     };
   } catch {
     return DEFAULT_SETTINGS;

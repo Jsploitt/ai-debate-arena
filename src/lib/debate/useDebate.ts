@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { checkHealth, streamChat } from "./ollamaClient";
 import { simulateStream, simulatedTurnText } from "./simulation";
 import { buildRequestBody } from "./ollamaClient";
+import { runLiveJudge, simulateJudge } from "./judge";
 import { THINKING_INSTRUCTION } from "./presets";
+
 import type {
   ArenaSettings,
   ChatMessage,
@@ -11,7 +13,9 @@ import type {
   DebaterConfig,
   LogEntry,
   LogKind,
+  JudgeScorecard,
   Side,
+
   SpeakerStatus,
   Telemetry,
 } from "./types";
@@ -69,6 +73,9 @@ export function useDebate(settings: ArenaSettings) {
     beta: null,
   });
   const [contextTokens, setContextTokens] = useState(0);
+  const [scorecard, setScorecard] = useState<JudgeScorecard | null>(null);
+  const [judging, setJudging] = useState(false);
+
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -264,6 +271,53 @@ export function useDebate(settings: ArenaSettings) {
   const usingSimulationRef = useRef(usingSimulation);
   usingSimulationRef.current = usingSimulation;
 
+  const messagesRef = useRef<DebateMessage[]>([]);
+  messagesRef.current = messages;
+
+  const judgeDebate = useCallback(async () => {
+    const s = settingsRef.current;
+    const transcript = messagesRef.current.filter((m) => !m.streaming && m.content.trim());
+    if (!s.judge.enabled || transcript.length < 2 || !topicRef.current) return;
+
+    const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
+    setJudging(true);
+    setScorecard(null);
+    log("info", "system", "AI Judge is scoring the debate…");
+
+    if (!usingSimulationRef.current) {
+      const controller = new AbortController();
+      try {
+        log(
+          "request",
+          "system",
+          `POST ${s.judge.endpoint} (AI Judge)\nmodel=${s.judge.model} temperature=${s.judge.temperature}`,
+        );
+        const { scorecard: live, raw } = await runLiveJudge(
+          s.judge,
+          topicRef.current,
+          transcript,
+          names,
+        );
+        if (live) {
+          setScorecard(live);
+          log("info", "system", `AI Judge verdict: ${live.winner.toUpperCase()}.`);
+          setJudging(false);
+          return;
+        }
+        log("error", "system", `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`);
+      } catch (error) {
+        controller.abort();
+        const msg = error instanceof Error ? error.message : String(error);
+        log("error", "system", `AI Judge request failed (${msg}) — using simulated scoring.`);
+      }
+    }
+
+    const simulated = simulateJudge(topicRef.current, transcript, names);
+    setScorecard(simulated);
+    log("info", "system", `AI Judge (simulated) verdict: ${simulated.winner.toUpperCase()}.`);
+    setJudging(false);
+  }, [log]);
+
   const loop = useCallback(async () => {
     if (busyRef.current) return;
     busyRef.current = true;
@@ -276,8 +330,10 @@ export function useDebate(settings: ArenaSettings) {
       runningRef.current = false;
       setPhase("finished");
       log("info", "system", "Debate complete.");
+      void judgeDebate();
     }
-  }, [runTurn, log]);
+  }, [runTurn, log, judgeDebate]);
+
 
   const resolveMode = useCallback(async () => {
     const s = settingsRef.current;
@@ -320,6 +376,9 @@ export function useDebate(settings: ArenaSettings) {
       setLogs([]);
       setContextTokens(0);
       setLastTelemetry({ alpha: null, beta: null });
+      setScorecard(null);
+      setJudging(false);
+
       log("info", "system", `Resolution accepted: "${trimmed}"`);
       await resolveMode();
       runningRef.current = true;
@@ -351,8 +410,11 @@ export function useDebate(settings: ArenaSettings) {
     setPhase("paused");
     await runTurn(turnRef.current);
     busyRef.current = false;
-    if (turnRef.current >= total) setPhase("finished");
-  }, [runTurn]);
+    if (turnRef.current >= total) {
+      setPhase("finished");
+      void judgeDebate();
+    }
+  }, [runTurn, judgeDebate]);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
@@ -369,6 +431,8 @@ export function useDebate(settings: ArenaSettings) {
     setStatus({ alpha: "idle", beta: "idle" });
     setLastTelemetry({ alpha: null, beta: null });
     setContextTokens(0);
+    setScorecard(null);
+    setJudging(false);
   }, []);
 
   return {
@@ -382,6 +446,9 @@ export function useDebate(settings: ArenaSettings) {
     turnIndex,
     lastTelemetry,
     contextTokens,
+    scorecard,
+    judging,
+    judgeDebate,
     start,
     pause,
     resume,
@@ -389,5 +456,6 @@ export function useDebate(settings: ArenaSettings) {
     reset,
     refreshHealth,
     setTopic,
+
   };
 }

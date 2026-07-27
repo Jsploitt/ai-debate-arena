@@ -1,0 +1,184 @@
+import { streamChat } from "./ollamaClient";
+import type {
+  ChatMessage,
+  DebateMessage,
+  DebaterConfig,
+  JudgeConfig,
+  JudgeCriterion,
+  JudgeScorecard,
+  Side,
+} from "./types";
+
+export const JUDGE_CRITERIA: JudgeCriterion[] = [
+  "Logic",
+  "Evidence",
+  "Rebuttal",
+  "Clarity",
+  "Persuasion",
+];
+
+export const JUDGE_SYSTEM_PROMPT = [
+  "You are an impartial AI debate judge at a live technology showcase.",
+  "Score both debaters on five criteria, each from 0 to 10: Logic, Evidence, Rebuttal, Clarity, Persuasion.",
+  "Be discriminating — do not give both sides identical scores unless the debate was genuinely tied.",
+  "Reply with ONLY a JSON object, no prose and no markdown fences, in exactly this shape:",
+  '{"alpha":{"Logic":0,"Evidence":0,"Rebuttal":0,"Clarity":0,"Persuasion":0,"summary":"one sentence"},',
+  '"beta":{"Logic":0,"Evidence":0,"Rebuttal":0,"Clarity":0,"Persuasion":0,"summary":"one sentence"},',
+  '"winner":"alpha|beta|tie","verdict":"two sentences explaining the decision"}',
+].join("\n");
+
+function toDebaterConfig(judge: JudgeConfig): DebaterConfig {
+  return {
+    name: "AI Judge",
+    endpoint: judge.endpoint,
+    model: judge.model,
+    temperature: judge.temperature,
+    topP: 0.9,
+    systemPrompt: judge.systemPrompt,
+    thinkingLevel: 0,
+    tonePreset: "Custom",
+  };
+}
+
+export function buildJudgeMessages(
+  judge: JudgeConfig,
+  topic: string,
+  messages: DebateMessage[],
+  names: Record<Side, string>,
+): ChatMessage[] {
+  const transcript = messages
+    .map((m) => `[Round ${m.round}] ${names[m.side]} (${m.side.toUpperCase()}): ${m.content}`)
+    .join("\n\n");
+  return [
+    { role: "system", content: judge.systemPrompt || JUDGE_SYSTEM_PROMPT },
+    {
+      role: "user",
+      content: `Resolution: "${topic}"\n\nALPHA = ${names.alpha} (argued FOR)\nBETA = ${names.beta} (argued AGAINST)\n\nTranscript:\n\n${transcript}\n\nScore this debate now. JSON only.`,
+    },
+  ];
+}
+
+function clamp(n: unknown): number {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return 5;
+  return Math.max(0, Math.min(10, Math.round(v * 10) / 10));
+}
+
+function sum(scores: Record<JudgeCriterion, number>) {
+  return +JUDGE_CRITERIA.reduce((acc, c) => acc + scores[c], 0).toFixed(1);
+}
+
+export function parseJudgeResponse(raw: string): JudgeScorecard | null {
+  const stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, "");
+  const start = stripped.indexOf("{");
+  const end = stripped.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(stripped.slice(start, end + 1)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const side = (key: Side) => {
+    const block = (data[key] ?? {}) as Record<string, unknown>;
+    const scores = Object.fromEntries(
+      JUDGE_CRITERIA.map((c) => [c, clamp(block[c] ?? block[c.toLowerCase()])]),
+    ) as Record<JudgeCriterion, number>;
+    return {
+      scores,
+      total: sum(scores),
+      summary: typeof block.summary === "string" ? block.summary : "",
+    };
+  };
+
+  const alpha = side("alpha");
+  const beta = side("beta");
+  const declared = typeof data.winner === "string" ? data.winner.toLowerCase() : "";
+  const winner: Side | "tie" =
+    declared === "alpha" || declared === "beta"
+      ? (declared as Side)
+      : alpha.total === beta.total
+        ? "tie"
+        : alpha.total > beta.total
+          ? "alpha"
+          : "beta";
+
+  return {
+    alpha,
+    beta,
+    winner,
+    verdict: typeof data.verdict === "string" ? data.verdict : "",
+    simulated: false,
+    createdAt: Date.now(),
+  };
+}
+
+/** Deterministic-but-plausible scoring used when no live judge model is reachable. */
+export function simulateJudge(
+  topic: string,
+  messages: DebateMessage[],
+  names: Record<Side, string>,
+): JudgeScorecard {
+  const stats = (s: Side) => {
+    const own = messages.filter((m) => m.side === s);
+    const text = own.map((m) => m.content).join(" ");
+    const words = text.split(/\s+/).filter(Boolean);
+    const unique = new Set(words.map((w) => w.toLowerCase())).size;
+    const numbers = (text.match(/\d/g) ?? []).length;
+    const rebuttals = (text.match(/\b(but|however|concede|your|you)\b/gi) ?? []).length;
+    const questions = (text.match(/\?/g) ?? []).length;
+    const avgSentence = words.length / Math.max(1, (text.match(/[.!?]/g) ?? []).length);
+    return { words: words.length, unique, numbers, rebuttals, questions, avgSentence, turns: own.length };
+  };
+
+  const build = (s: Side) => {
+    const t = stats(s);
+    const scores = {
+      Logic: clamp(6 + Math.min(2.5, t.unique / 90) + Math.min(1, t.turns / 4)),
+      Evidence: clamp(5.5 + Math.min(3.5, t.numbers / 3)),
+      Rebuttal: clamp(5.5 + Math.min(3.5, t.rebuttals / 4) + Math.min(0.8, t.questions / 3)),
+      Clarity: clamp(9.5 - Math.abs(t.avgSentence - 18) / 6),
+      Persuasion: clamp(6 + Math.min(3, t.words / 140)),
+    } as Record<JudgeCriterion, number>;
+    return {
+      scores,
+      total: sum(scores),
+      summary:
+        s === "alpha"
+          ? `${names.alpha} built the affirmative case with steady structure and concrete framing across ${t.turns} turns.`
+          : `${names.beta} pressed hard on the opposing framing and forced the strongest concessions of the round.`,
+    };
+  };
+
+  const alpha = build("alpha");
+  const beta = build("beta");
+  const winner: Side | "tie" =
+    Math.abs(alpha.total - beta.total) < 0.4 ? "tie" : alpha.total > beta.total ? "alpha" : "beta";
+
+  const verdict =
+    winner === "tie"
+      ? `On "${topic}" the two models finished within a rounding error of each other: ${names.alpha} owned structure, ${names.beta} owned pressure.`
+      : `On "${topic}" the decision goes to ${winner === "alpha" ? names.alpha : names.beta}, who converted more of their claims into direct, evidenced rebuttals rather than restating the opening position.`;
+
+  return { alpha, beta, winner, verdict, simulated: true, createdAt: Date.now() };
+}
+
+export async function runLiveJudge(
+  judge: JudgeConfig,
+  topic: string,
+  messages: DebateMessage[],
+  names: Record<Side, string>,
+  signal?: AbortSignal,
+  onChunk?: (raw: string) => void,
+): Promise<{ scorecard: JudgeScorecard | null; raw: string }> {
+  const payload = buildJudgeMessages(judge, topic, messages, names);
+  let raw = "";
+  for await (const chunk of streamChat(toDebaterConfig(judge), payload, signal)) {
+    if (signal?.aborted) break;
+    raw += chunk.content;
+    if (chunk.raw) onChunk?.(chunk.raw);
+    if (chunk.done) break;
+  }
+  return { scorecard: parseJudgeResponse(raw), raw };
+}
