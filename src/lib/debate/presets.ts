@@ -1,4 +1,6 @@
-import type { ArenaSettings, DebaterConfig } from "./types";
+import { JUDGE_SYSTEM_PROMPT } from "./judge";
+import type { ArenaSettings, DebaterConfig, JudgeConfig } from "./types";
+
 
 export const TONE_PRESETS: Record<string, string> = {
   Custom: "",
