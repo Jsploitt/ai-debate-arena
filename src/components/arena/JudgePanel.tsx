@@ -185,8 +185,7 @@ export function JudgePanel({
         </div>
       )}
 
-        </div>
-      )}
+
     </section>
   );
 }
