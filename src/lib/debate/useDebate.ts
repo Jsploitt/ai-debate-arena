@@ -407,8 +407,11 @@ export function useDebate(settings: ArenaSettings) {
     setPhase("paused");
     await runTurn(turnRef.current);
     busyRef.current = false;
-    if (turnRef.current >= total) setPhase("finished");
-  }, [runTurn]);
+    if (turnRef.current >= total) {
+      setPhase("finished");
+      void judgeDebate();
+    }
+  }, [runTurn, judgeDebate]);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
@@ -425,6 +428,8 @@ export function useDebate(settings: ArenaSettings) {
     setStatus({ alpha: "idle", beta: "idle" });
     setLastTelemetry({ alpha: null, beta: null });
     setContextTokens(0);
+    setScorecard(null);
+    setJudging(false);
   }, []);
 
   return {
@@ -438,6 +443,9 @@ export function useDebate(settings: ArenaSettings) {
     turnIndex,
     lastTelemetry,
     contextTokens,
+    scorecard,
+    judging,
+    judgeDebate,
     start,
     pause,
     resume,
@@ -445,5 +453,6 @@ export function useDebate(settings: ArenaSettings) {
     reset,
     refreshHealth,
     setTopic,
+
   };
 }
