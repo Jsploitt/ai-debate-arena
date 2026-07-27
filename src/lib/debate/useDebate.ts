@@ -313,7 +313,7 @@ export function useDebate(settings: ArenaSettings) {
       turnRef.current = index + 1;
       setTurnIndex(index + 1);
     },
-    [log],
+    [log, setResolved],
   );
 
   const usingSimulationRef = useRef(usingSimulation);
