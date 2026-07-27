@@ -182,14 +182,15 @@ function Arena() {
           totalRounds={settings.rounds}
         />
 
-        <div className="grid flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="arena-panel flex min-h-[38vh] flex-col rounded-2xl p-4">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="arena-panel flex h-[52vh] min-h-[380px] flex-col overflow-hidden rounded-2xl p-4">
             <ConversationStream
               messages={debate.messages}
               names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
               topic={debate.topic}
             />
           </div>
+
 
           <aside className="hidden flex-col gap-3 xl:flex">
             <TelemetryPanel
