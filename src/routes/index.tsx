@@ -203,6 +203,7 @@ function Arena() {
               names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
               onJudge={() => void debate.judgeDebate()}
               canJudge={debate.messages.length >= 2}
+              language={settings.language}
             />
           </aside>
         </div>

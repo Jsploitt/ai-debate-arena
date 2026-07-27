@@ -119,7 +119,7 @@ export function buildJudgeMessages(
     : "The debate is complete. Score it now, with a short reason per criterion. JSON only.";
   const languageNote =
     language === "ar"
-      ? "\n\nNOTE: the debate below is in Arabic. Read and score it in Arabic, but write your JSON reasons, summaries and verdict in English.\n"
+      ? "\n\nمهم: النقاش أدناه باللغة العربية. اقرأه وقيّمه بالعربية، واكتب كل حقول \"reason\" و\"summary\" و\"verdict\" داخل JSON باللغة العربية الفصحى فقط. حافظ على مفاتيح JSON كما هي بالإنجليزية.\n"
       : "";
   return [
     {
@@ -221,7 +221,9 @@ export function simulateJudge(
   names: Record<Side, string>,
   judge?: JudgeConfig,
   interim = false,
+  language: DebateLanguage = "en",
 ): JudgeScorecard {
+  const ar = language === "ar";
   const weights = weightsOf(judge);
   const scale = scaleOf(judge);
   const tieThreshold = Number.isFinite(Number(judge?.tieThreshold))
@@ -255,7 +257,15 @@ export function simulateJudge(
       Clarity: clamp(k * (9.5 - Math.abs(t.avgSentence - 18) / 6), scale),
       Persuasion: clamp(k * (6 + Math.min(3, t.words / 140)), scale),
     } as Record<JudgeCriterion, number>;
-    const reasons: Record<JudgeCriterion, string> = {
+    const reasons: Record<JudgeCriterion, string> = ar
+      ? {
+          Logic: `${t.unique} مصطلحاً مختلفاً عبر ${t.turns} مداخلة — ${scores.Logic >= 8 * k ? "سلاسل الحجج جاءت متماسكة وغير مكررة" : "بعض الدعاوى أُعيد ذكرها بدل تطويرها"}.`,
+          Evidence: `${t.numbers} إشارة رقمية أو كمّية — ${scores.Evidence >= 8 * k ? "الدعاوى مدعومة بأرقام بشكل متسق" : "كان يلزم بيانات أكثر تحديداً لتقوية الطرح"}.`,
+          Rebuttal: `${t.rebuttals} مواجهة مباشرة و${t.questions} سؤالاً تحدّى به إطار الخصم.`,
+          Clarity: `متوسط طول الجملة ${t.avgSentence.toFixed(0)} كلمة — ${scores.Clarity >= 8 * k ? "عرض واضح وسهل المتابعة على المسرح" : "كثافة أعلى مما يناسب جمهوراً مباشراً"}.`,
+          Persuasion: `${t.words} كلمة من الحجاج المتصل؛ ${scores.Persuasion >= 8 * k ? `${name} أنهى بزخم بلاغي حقيقي` : `${name} أوصل الفكرة لكن دون تصعيد كافٍ`}.`,
+        }
+      : {
       Logic: `${t.unique} distinct terms across ${t.turns} turn(s) — ${scores.Logic >= 8 ? "argument chains stayed tight and non-repetitive" : "some claims were restated rather than advanced"}.`,
       Evidence: `${t.numbers} numeric/quantified references — ${scores.Evidence >= 8 ? "claims were consistently backed by figures" : "more concrete data would strengthen the case"}.`,
       Rebuttal: `${t.rebuttals} direct counter-moves and ${t.questions} challenge question(s) aimed at the opponent's framing.`,
@@ -266,8 +276,11 @@ export function simulateJudge(
       scores,
       reasons,
       total: weightedTotal(scores, weights),
-      summary:
-        s === "alpha"
+      summary: ar
+        ? s === "alpha"
+          ? `${names.alpha} بنى الحجة المؤيدة ببنية ثابتة وتأطير ملموس عبر ${t.turns} مداخلة.`
+          : `${names.beta} ضغط بقوة على إطار الخصم وانتزع أبرز التنازلات في الجولة.`
+        : s === "alpha"
           ? `${names.alpha} built the affirmative case with steady structure and concrete framing across ${t.turns} turns.`
           : `${names.beta} pressed hard on the opposing framing and forced the strongest concessions of the round.`,
     };
@@ -283,7 +296,15 @@ export function simulateJudge(
         : "beta";
 
   const lead = winner === "alpha" ? names.alpha : names.beta;
-  const verdict = interim
+  const verdict = ar
+    ? interim
+      ? winner === "tie"
+        ? `النتيجة الجارية حول "${topic}": تعادل تام حتى الآن — ${names.alpha} يتفوق في البنية و${names.beta} في الضغط.`
+        : `النتيجة الجارية حول "${topic}": ${lead} متقدم حالياً بتفنيدات أحدّ وأكثر استناداً إلى الأدلة.`
+      : winner === "tie"
+        ? `في "${topic}" أنهى النموذجان النقاش بفارق لا يُذكر: ${names.alpha} امتلك البنية و${names.beta} امتلك الضغط.`
+        : `في "${topic}" يذهب القرار إلى ${lead}، الذي حوّل عدداً أكبر من دعاواه إلى تفنيدات مباشرة مدعومة بالأدلة بدل إعادة عرض موقفه الافتتاحي.`
+    : interim
     ? winner === "tie"
       ? `Running score on "${topic}": dead level so far — ${names.alpha} owns structure, ${names.beta} owns pressure.`
       : `Running score on "${topic}": ${lead} is ahead right now on sharper, better-evidenced rebuttals.`

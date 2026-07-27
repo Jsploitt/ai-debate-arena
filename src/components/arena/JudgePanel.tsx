@@ -1,6 +1,6 @@
 import { Activity, Gavel, Loader2, Trophy } from "lucide-react";
 import { JUDGE_CRITERIA } from "@/lib/debate/judge";
-import type { JudgeScorecard, JudgeSideScore, Side } from "@/lib/debate/types";
+import type { DebateLanguage, JudgeScorecard, JudgeSideScore, Side } from "@/lib/debate/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +56,7 @@ function ScoreRow({
   side,
   scale = 10,
   weight = 1,
+  rtl = false,
 }: {
   label: string;
   value: number;
@@ -63,6 +64,7 @@ function ScoreRow({
   side: Side;
   scale?: number;
   weight?: number;
+  rtl?: boolean;
 }) {
   return (
     <div className="space-y-1">
@@ -94,7 +96,15 @@ function ScoreRow({
         />
       </div>
       {reason && (
-        <p className="text-[11px] leading-snug text-muted-foreground/90 italic">{reason}</p>
+        <p
+          dir={rtl ? "rtl" : "ltr"}
+          className={cn(
+            "text-[11px] leading-snug text-muted-foreground/90 italic",
+            rtl && "text-right",
+          )}
+        >
+          {reason}
+        </p>
       )}
     </div>
   );
@@ -109,6 +119,7 @@ function SideCard({
   scale,
   maxTotal,
   weights,
+  rtl = false,
 }: {
   side: Side;
   name: string;
@@ -117,6 +128,7 @@ function SideCard({
   scale: number;
   maxTotal: number;
   weights?: Record<string, number>;
+  rtl?: boolean;
 }) {
   const accent = side === "alpha" ? "text-alpha" : "text-beta";
   return (
@@ -134,7 +146,13 @@ function SideCard({
         <div>
           <p className={cn("text-sm font-semibold", accent)}>{name}</p>
           <p className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
-            {side === "alpha" ? "For the resolution" : "Against the resolution"}
+            {rtl
+              ? side === "alpha"
+                ? "مؤيد للطرح"
+                : "معارض للطرح"
+              : side === "alpha"
+                ? "For the resolution"
+                : "Against the resolution"}
           </p>
         </div>
         <div className="text-right">
@@ -155,13 +173,19 @@ function SideCard({
             side={side}
             scale={scale}
             weight={weights?.[c] ?? 1}
+            rtl={rtl}
           />
 
         ))}
       </div>
 
       {score.summary && (
-        <p className="text-xs leading-relaxed text-muted-foreground">{score.summary}</p>
+        <p
+          dir={rtl ? "rtl" : "ltr"}
+          className={cn("text-xs leading-relaxed text-muted-foreground", rtl && "text-right")}
+        >
+          {score.summary}
+        </p>
       )}
     </div>
   );
@@ -173,13 +197,16 @@ export function JudgePanel({
   names,
   onJudge,
   canJudge,
+  language = "en",
 }: {
   scorecard: JudgeScorecard | null;
   judging: boolean;
   names: Record<Side, string>;
   onJudge: () => void;
   canJudge: boolean;
+  language?: DebateLanguage;
 }) {
+  const rtl = language === "ar";
   return (
     <section className="arena-panel rounded-2xl p-4">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -249,6 +276,7 @@ export function JudgePanel({
               scale={scorecard.scale ?? 10}
               maxTotal={scorecard.maxTotal ?? 50}
               weights={scorecard.weights}
+              rtl={rtl}
             />
             <SideCard
               side="beta"
@@ -258,21 +286,41 @@ export function JudgePanel({
               scale={scorecard.scale ?? 10}
               maxTotal={scorecard.maxTotal ?? 50}
               weights={scorecard.weights}
+              rtl={rtl}
             />
           </div>
 
           <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
-            <div className="mb-1 flex items-center gap-2">
+            <div
+              dir={rtl ? "rtl" : "ltr"}
+              className="mb-1 flex items-center gap-2"
+            >
               <Trophy className="size-4 text-primary" />
-              <p className="font-mono text-xs tracking-[0.18em] text-primary uppercase">
-                {scorecard.winner === "tie"
-                  ? scorecard.interim
-                    ? "Running score — Level"
-                    : "Verdict — Draw"
-                  : `${scorecard.interim ? "Leading" : "Verdict"} — ${scorecard.winner === "alpha" ? names.alpha : names.beta}${scorecard.interim ? " ahead" : " wins"}`}
+              <p
+                className={cn(
+                  "font-mono text-xs tracking-[0.18em] text-primary",
+                  !rtl && "uppercase",
+                )}
+              >
+                {rtl
+                  ? scorecard.winner === "tie"
+                    ? scorecard.interim
+                      ? "النتيجة الجارية — تعادل"
+                      : "الحكم — تعادل"
+                    : `${scorecard.interim ? "المتصدر" : "الحكم"} — ${scorecard.winner === "alpha" ? names.alpha : names.beta}${scorecard.interim ? " متقدم" : " يفوز"}`
+                  : scorecard.winner === "tie"
+                    ? scorecard.interim
+                      ? "Running score — Level"
+                      : "Verdict — Draw"
+                    : `${scorecard.interim ? "Leading" : "Verdict"} — ${scorecard.winner === "alpha" ? names.alpha : names.beta}${scorecard.interim ? " ahead" : " wins"}`}
               </p>
             </div>
-            <p className="text-sm leading-relaxed text-foreground/85">{scorecard.verdict}</p>
+            <p
+              dir={rtl ? "rtl" : "ltr"}
+              className={cn("text-sm leading-relaxed text-foreground/85", rtl && "text-right")}
+            >
+              {scorecard.verdict}
+            </p>
           </div>
         </div>
       )}
