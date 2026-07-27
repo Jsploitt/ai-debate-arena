@@ -48,15 +48,19 @@ export function buildJudgeMessages(
   topic: string,
   messages: DebateMessage[],
   names: Record<Side, string>,
+  interim = false,
 ): ChatMessage[] {
   const transcript = messages
     .map((m) => `[Round ${m.round}] ${names[m.side]} (${m.side.toUpperCase()}): ${m.content}`)
     .join("\n\n");
+  const closing = interim
+    ? "The debate is STILL IN PROGRESS. Give a provisional running score for what has been said so far, with a short reason per criterion. JSON only."
+    : "The debate is complete. Score it now, with a short reason per criterion. JSON only.";
   return [
     { role: "system", content: judge.systemPrompt || JUDGE_SYSTEM_PROMPT },
     {
       role: "user",
-      content: `Resolution: "${topic}"\n\nALPHA = ${names.alpha} (argued FOR)\nBETA = ${names.beta} (argued AGAINST)\n\nTranscript:\n\n${transcript}\n\nScore this debate now. JSON only.`,
+      content: `Resolution: "${topic}"\n\nALPHA = ${names.alpha} (argued FOR)\nBETA = ${names.beta} (argued AGAINST)\n\nTranscript:\n\n${transcript}\n\n${closing}`,
     },
   ];
 }
@@ -71,7 +75,7 @@ function sum(scores: Record<JudgeCriterion, number>) {
   return +JUDGE_CRITERIA.reduce((acc, c) => acc + scores[c], 0).toFixed(1);
 }
 
-export function parseJudgeResponse(raw: string): JudgeScorecard | null {
+export function parseJudgeResponse(raw: string, interim = false, turnsScored = 0): JudgeScorecard | null {
   const stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, "");
   const start = stripped.indexOf("{");
   const end = stripped.lastIndexOf("}");
@@ -85,11 +89,23 @@ export function parseJudgeResponse(raw: string): JudgeScorecard | null {
 
   const side = (key: Side) => {
     const block = (data[key] ?? {}) as Record<string, unknown>;
-    const scores = Object.fromEntries(
-      JUDGE_CRITERIA.map((c) => [c, clamp(block[c] ?? block[c.toLowerCase()])]),
-    ) as Record<JudgeCriterion, number>;
+    const scores = {} as Record<JudgeCriterion, number>;
+    const reasons = {} as Record<JudgeCriterion, string>;
+    for (const c of JUDGE_CRITERIA) {
+      const entry = block[c] ?? block[c.toLowerCase()];
+      if (entry && typeof entry === "object") {
+        const obj = entry as Record<string, unknown>;
+        scores[c] = clamp(obj.score ?? obj.value);
+        reasons[c] = typeof obj.reason === "string" ? obj.reason : "";
+      } else {
+        scores[c] = clamp(entry);
+        const alt = block[`${c.toLowerCase()}_reason`] ?? block[`${c}Reason`];
+        reasons[c] = typeof alt === "string" ? alt : "";
+      }
+    }
     return {
       scores,
+      reasons,
       total: sum(scores),
       summary: typeof block.summary === "string" ? block.summary : "",
     };
@@ -114,8 +130,11 @@ export function parseJudgeResponse(raw: string): JudgeScorecard | null {
     verdict: typeof data.verdict === "string" ? data.verdict : "",
     simulated: false,
     createdAt: Date.now(),
+    interim,
+    turnsScored,
   };
 }
+
 
 /** Deterministic-but-plausible scoring used when no live judge model is reachable. */
 export function simulateJudge(
