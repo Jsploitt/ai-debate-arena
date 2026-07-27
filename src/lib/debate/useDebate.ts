@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { checkHealth, streamChat } from "./ollamaClient";
+import { checkHealth, listModels, resolveModelName, streamChat } from "./ollamaClient";
 import { simulateStream, simulatedTurnText } from "./simulation";
 import { buildRequestBody } from "./ollamaClient";
 import { runLiveJudge, simulateJudge } from "./judge";
