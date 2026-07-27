@@ -1,0 +1,102 @@
+import { Download, Pause, Play, RotateCcw, SkipForward, Swords } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SAMPLE_TOPICS } from "@/lib/debate/presets";
+import type { Phase } from "@/lib/debate/useDebate";
+
+export function ControlDesk({
+  value,
+  onValueChange,
+  phase,
+  onStart,
+  onPause,
+  onResume,
+  onNextTurn,
+  onReset,
+  onDownload,
+}: {
+  value: string;
+  onValueChange: (v: string) => void;
+  phase: Phase;
+  onStart: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onNextTurn: () => void;
+  onReset: () => void;
+  onDownload: () => void;
+}) {
+  const running = phase === "running";
+
+  return (
+    <div className="arena-panel space-y-3 rounded-2xl p-4">
+      <div className="flex flex-col gap-3 lg:flex-row">
+        <div className="relative flex-1">
+          <Input
+            value={value}
+            onChange={(e) => onValueChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && value.trim()) onStart();
+            }}
+            placeholder="Enter the debate resolution…"
+            className="h-14 border-primary/40 bg-background/70 px-5 text-lg shadow-[0_0_30px_-14px_var(--primary)] focus-visible:ring-primary md:text-xl"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="lg"
+            className="h-14 px-6 text-base font-semibold"
+            onClick={onStart}
+            disabled={!value.trim()}
+          >
+            <Swords className="size-5" />
+            Start Debate
+          </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            className="h-14"
+            onClick={running ? onPause : onResume}
+            disabled={phase === "idle" || phase === "finished"}
+          >
+            {running ? <Pause className="size-5" /> : <Play className="size-5" />}
+            {running ? "Pause" : "Resume"}
+          </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            className="h-14"
+            onClick={onNextTurn}
+            disabled={phase === "idle" || phase === "finished" || running}
+          >
+            <SkipForward className="size-5" />
+            Next Turn
+          </Button>
+          <Button size="lg" variant="outline" className="h-14" onClick={onReset}>
+            <RotateCcw className="size-5" />
+            Reset Arena
+          </Button>
+          <Button size="lg" variant="outline" className="h-14" onClick={onDownload}>
+            <Download className="size-5" />
+            Transcript
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-xs tracking-[0.14em] text-muted-foreground uppercase">
+          Suggested:
+        </span>
+        {SAMPLE_TOPICS.map((topic) => (
+          <button
+            key={topic}
+            onClick={() => onValueChange(topic)}
+            className="rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+          >
+            {topic}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
