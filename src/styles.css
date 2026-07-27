@@ -55,45 +55,49 @@
 
 :root {
   --radius: 0.75rem;
-  --background: oklch(0.16 0.024 255);
+  /* Dell Technologies deep navy canvas */
+  --background: oklch(0.17 0.038 250);
   --foreground: oklch(0.97 0.006 250);
-  --card: oklch(0.21 0.03 256);
+  --card: oklch(0.22 0.042 250);
   --card-foreground: oklch(0.97 0.006 250);
-  --popover: oklch(0.19 0.028 256);
+  --popover: oklch(0.2 0.04 250);
   --popover-foreground: oklch(0.97 0.006 250);
-  --primary: oklch(0.72 0.16 178);
-  --primary-foreground: oklch(0.16 0.024 255);
-  --secondary: oklch(0.28 0.035 257);
+  /* Dell blue #0076CE */
+  --primary: oklch(0.62 0.16 246);
+  --primary-foreground: oklch(0.99 0.004 250);
+  --secondary: oklch(0.29 0.04 250);
   --secondary-foreground: oklch(0.96 0.006 250);
-  --muted: oklch(0.26 0.03 257);
-  --muted-foreground: oklch(0.72 0.024 254);
-  --accent: oklch(0.3 0.05 250);
-  --accent-foreground: oklch(0.97 0.006 250);
+  --muted: oklch(0.26 0.035 250);
+  --muted-foreground: oklch(0.73 0.022 250);
+  /* Saudi flag green #006C35 lifted for dark UI */
+  --accent: oklch(0.55 0.14 156);
+  --accent-foreground: oklch(0.99 0.004 250);
   --destructive: oklch(0.62 0.21 25);
   --destructive-foreground: oklch(0.98 0.005 250);
-  --border: oklch(0.33 0.032 254);
-  --input: oklch(0.3 0.032 254);
-  --ring: oklch(0.72 0.16 178);
-  --chart-1: oklch(0.7 0.15 235);
-  --chart-2: oklch(0.75 0.16 160);
-  --chart-3: oklch(0.7 0.12 200);
-  --chart-4: oklch(0.65 0.14 270);
-  --chart-5: oklch(0.8 0.13 130);
-  --sidebar: oklch(0.19 0.028 256);
+  --border: oklch(0.34 0.04 250);
+  --input: oklch(0.31 0.04 250);
+  --ring: oklch(0.62 0.16 246);
+  --chart-1: oklch(0.62 0.16 246);
+  --chart-2: oklch(0.68 0.16 156);
+  --chart-3: oklch(0.74 0.12 232);
+  --chart-4: oklch(0.8 0.13 190);
+  --chart-5: oklch(0.86 0.02 250);
+  --sidebar: oklch(0.2 0.04 250);
   --sidebar-foreground: oklch(0.97 0.006 250);
-  --sidebar-primary: oklch(0.72 0.16 178);
-  --sidebar-primary-foreground: oklch(0.16 0.024 255);
-  --sidebar-accent: oklch(0.28 0.035 257);
+  --sidebar-primary: oklch(0.62 0.16 246);
+  --sidebar-primary-foreground: oklch(0.99 0.004 250);
+  --sidebar-accent: oklch(0.29 0.04 250);
   --sidebar-accent-foreground: oklch(0.97 0.006 250);
-  --sidebar-border: oklch(0.33 0.032 254);
-  --sidebar-ring: oklch(0.72 0.16 178);
+  --sidebar-border: oklch(0.34 0.04 250);
+  --sidebar-ring: oklch(0.62 0.16 246);
 
-  --alpha: oklch(0.72 0.15 235);
-  --alpha-soft: oklch(0.72 0.15 235 / 0.14);
-  --beta: oklch(0.78 0.17 158);
-  --beta-soft: oklch(0.78 0.17 158 / 0.14);
-  --steel: oklch(0.62 0.015 250);
-  --terminal: oklch(0.84 0.15 150);
+  /* Alpha = Dell blue, Beta = Saudi green */
+  --alpha: oklch(0.66 0.16 246);
+  --alpha-soft: oklch(0.66 0.16 246 / 0.14);
+  --beta: oklch(0.68 0.16 156);
+  --beta-soft: oklch(0.68 0.16 156 / 0.14);
+  --steel: oklch(0.64 0.014 250);
+  --terminal: oklch(0.78 0.16 154);
 }
 
 @layer base {
@@ -105,8 +109,8 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     background-image:
-      radial-gradient(circle at 12% 0%, oklch(0.72 0.15 235 / 0.16), transparent 45%),
-      radial-gradient(circle at 88% 0%, oklch(0.78 0.17 158 / 0.14), transparent 45%),
+      radial-gradient(circle at 12% 0%, oklch(0.62 0.16 246 / 0.22), transparent 48%),
+      radial-gradient(circle at 88% 0%, oklch(0.62 0.15 156 / 0.18), transparent 48%),
       linear-gradient(oklch(1 0 0 / 0.02) 1px, transparent 1px),
       linear-gradient(90deg, oklch(1 0 0 / 0.02) 1px, transparent 1px);
     background-size:
@@ -116,6 +120,7 @@
       44px 44px;
   }
 }
+
 
 @keyframes arena-pulse-ring {
   0% {
