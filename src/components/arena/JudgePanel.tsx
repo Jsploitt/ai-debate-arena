@@ -276,6 +276,7 @@ export function JudgePanel({
               scale={scorecard.scale ?? 10}
               maxTotal={scorecard.maxTotal ?? 50}
               weights={scorecard.weights}
+              rtl={rtl}
             />
             <SideCard
               side="beta"
@@ -285,21 +286,41 @@ export function JudgePanel({
               scale={scorecard.scale ?? 10}
               maxTotal={scorecard.maxTotal ?? 50}
               weights={scorecard.weights}
+              rtl={rtl}
             />
           </div>
 
           <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
-            <div className="mb-1 flex items-center gap-2">
+            <div
+              dir={rtl ? "rtl" : "ltr"}
+              className="mb-1 flex items-center gap-2"
+            >
               <Trophy className="size-4 text-primary" />
-              <p className="font-mono text-xs tracking-[0.18em] text-primary uppercase">
-                {scorecard.winner === "tie"
-                  ? scorecard.interim
-                    ? "Running score — Level"
-                    : "Verdict — Draw"
-                  : `${scorecard.interim ? "Leading" : "Verdict"} — ${scorecard.winner === "alpha" ? names.alpha : names.beta}${scorecard.interim ? " ahead" : " wins"}`}
+              <p
+                className={cn(
+                  "font-mono text-xs tracking-[0.18em] text-primary",
+                  !rtl && "uppercase",
+                )}
+              >
+                {rtl
+                  ? scorecard.winner === "tie"
+                    ? scorecard.interim
+                      ? "النتيجة الجارية — تعادل"
+                      : "الحكم — تعادل"
+                    : `${scorecard.interim ? "المتصدر" : "الحكم"} — ${scorecard.winner === "alpha" ? names.alpha : names.beta}${scorecard.interim ? " متقدم" : " يفوز"}`
+                  : scorecard.winner === "tie"
+                    ? scorecard.interim
+                      ? "Running score — Level"
+                      : "Verdict — Draw"
+                    : `${scorecard.interim ? "Leading" : "Verdict"} — ${scorecard.winner === "alpha" ? names.alpha : names.beta}${scorecard.interim ? " ahead" : " wins"}`}
               </p>
             </div>
-            <p className="text-sm leading-relaxed text-foreground/85">{scorecard.verdict}</p>
+            <p
+              dir={rtl ? "rtl" : "ltr"}
+              className={cn("text-sm leading-relaxed text-foreground/85", rtl && "text-right")}
+            >
+              {scorecard.verdict}
+            </p>
           </div>
         </div>
       )}
