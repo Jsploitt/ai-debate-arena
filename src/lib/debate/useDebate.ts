@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { checkHealth, streamChat } from "./ollamaClient";
 import { simulateStream, simulatedTurnText } from "./simulation";
 import { buildRequestBody } from "./ollamaClient";
+import { runLiveJudge, simulateJudge } from "./judge";
 import { THINKING_INSTRUCTION } from "./presets";
+
 import type {
   ArenaSettings,
   ChatMessage,
