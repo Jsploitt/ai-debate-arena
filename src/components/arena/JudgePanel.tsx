@@ -1,6 +1,6 @@
 import { Activity, Gavel, Loader2, Trophy } from "lucide-react";
 import { JUDGE_CRITERIA } from "@/lib/debate/judge";
-import type { JudgeScorecard, JudgeSideScore, Side } from "@/lib/debate/types";
+import type { DebateLanguage, JudgeScorecard, JudgeSideScore, Side } from "@/lib/debate/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
