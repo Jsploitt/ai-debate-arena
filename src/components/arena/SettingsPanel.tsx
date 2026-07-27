@@ -216,6 +216,9 @@ export function SettingsPanel({
           <TabsTrigger value="beta" className="flex-1 data-[state=active]:text-beta">
             Beta
           </TabsTrigger>
+          <TabsTrigger value="judge" className="flex-1 data-[state=active]:text-primary">
+            Judge
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="alpha" className="pt-4">
           <DebaterForm
@@ -231,7 +234,63 @@ export function SettingsPanel({
             onChange={(patch) => onChange({ beta: { ...settings.beta, ...patch } })}
           />
         </TabsContent>
+        <TabsContent value="judge" className="space-y-5 pt-4">
+          <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/30 p-3">
+            <Label className="text-xs tracking-[0.14em] uppercase">Enable AI Judge</Label>
+            <Switch
+              checked={settings.judge.enabled}
+              onCheckedChange={(enabled) => onChange({ judge: { ...settings.judge, enabled } })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs tracking-[0.14em] uppercase">Judge endpoint URL</Label>
+            <Input
+              value={settings.judge.endpoint}
+              onChange={(e) => onChange({ judge: { ...settings.judge, endpoint: e.target.value } })}
+              className="font-mono text-sm"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs tracking-[0.14em] uppercase">Judge model</Label>
+            <Input
+              value={settings.judge.model}
+              onChange={(e) => onChange({ judge: { ...settings.judge, model: e.target.value } })}
+              className="font-mono text-sm"
+              placeholder="llama3"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex justify-between text-xs tracking-[0.14em] uppercase">
+              Temperature <span className="font-mono">{settings.judge.temperature.toFixed(2)}</span>
+            </Label>
+            <Slider
+              min={0}
+              max={1}
+              step={0.05}
+              value={[settings.judge.temperature]}
+              onValueChange={([temperature]) =>
+                onChange({ judge: { ...settings.judge, temperature } })
+              }
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs tracking-[0.14em] uppercase">Judging rubric prompt</Label>
+            <Textarea
+              rows={9}
+              value={settings.judge.systemPrompt}
+              onChange={(e) =>
+                onChange({ judge: { ...settings.judge, systemPrompt: e.target.value } })
+              }
+              className="font-mono text-xs"
+            />
+          </div>
+        </TabsContent>
       </Tabs>
+
 
       <p className="rounded-lg border border-border/70 bg-muted/40 p-3 font-mono text-xs text-muted-foreground">
         Browser blocked? Restart Ollama with OLLAMA_ORIGINS=&quot;*&quot; so this page can reach
