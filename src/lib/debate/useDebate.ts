@@ -22,6 +22,9 @@ import type {
 
 export type Phase = "idle" | "running" | "paused" | "finished";
 
+/** A model slot in the arena: the two debaters and the judge. */
+export type Slot = Side | "judge";
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 function splitReasoning(raw: string) {
