@@ -123,7 +123,7 @@ export function ConversationStream({
           ))}
         </>
       )}
-      <div ref={endRef} />
+      
     </div>
   );
 }
