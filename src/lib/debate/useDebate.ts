@@ -274,49 +274,74 @@ export function useDebate(settings: ArenaSettings) {
   const messagesRef = useRef<DebateMessage[]>([]);
   messagesRef.current = messages;
 
-  const judgeDebate = useCallback(async () => {
-    const s = settingsRef.current;
-    const transcript = messagesRef.current.filter((m) => !m.streaming && m.content.trim());
-    if (!s.judge.enabled || transcript.length < 2 || !topicRef.current) return;
+  const judgeSeqRef = useRef(0);
 
-    const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
-    setJudging(true);
-    setScorecard(null);
-    log("info", "system", "AI Judge is scoring the debate…");
+  const judgeDebate = useCallback(
+    async (interim = false) => {
+      const s = settingsRef.current;
+      const transcript = messagesRef.current.filter((m) => !m.streaming && m.content.trim());
+      if (!s.judge.enabled || transcript.length < 2 || !topicRef.current) return;
 
-    if (!usingSimulationRef.current) {
-      const controller = new AbortController();
-      try {
-        log(
-          "request",
-          "system",
-          `POST ${s.judge.endpoint} (AI Judge)\nmodel=${s.judge.model} temperature=${s.judge.temperature}`,
-        );
-        const { scorecard: live, raw } = await runLiveJudge(
-          s.judge,
-          topicRef.current,
-          transcript,
-          names,
-        );
-        if (live) {
-          setScorecard(live);
-          log("info", "system", `AI Judge verdict: ${live.winner.toUpperCase()}.`);
-          setJudging(false);
-          return;
+      const seq = ++judgeSeqRef.current;
+      const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
+      setJudging(true);
+      // Keep the previous scorecard visible while a live update is computed.
+      if (!interim) setScorecard(null);
+      log(
+        "info",
+        "system",
+        interim
+          ? `AI Judge updating live score after ${transcript.length} turns…`
+          : "AI Judge is scoring the debate…",
+      );
+
+      if (!usingSimulationRef.current) {
+        try {
+          log(
+            "request",
+            "system",
+            `POST ${s.judge.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${s.judge.model} temperature=${s.judge.temperature}`,
+          );
+          const { scorecard: live, raw } = await runLiveJudge(
+            s.judge,
+            topicRef.current,
+            transcript,
+            names,
+            undefined,
+            undefined,
+            interim,
+          );
+          if (seq !== judgeSeqRef.current) return;
+          if (live) {
+            setScorecard(live);
+            log(
+              "info",
+              "system",
+              `AI Judge ${interim ? "running leader" : "verdict"}: ${live.winner.toUpperCase()}.`,
+            );
+            setJudging(false);
+            return;
+          }
+          log("error", "system", `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`);
+        } catch (error) {
+          if (seq !== judgeSeqRef.current) return;
+          const msg = error instanceof Error ? error.message : String(error);
+          log("error", "system", `AI Judge request failed (${msg}) — using simulated scoring.`);
         }
-        log("error", "system", `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`);
-      } catch (error) {
-        controller.abort();
-        const msg = error instanceof Error ? error.message : String(error);
-        log("error", "system", `AI Judge request failed (${msg}) — using simulated scoring.`);
       }
-    }
 
-    const simulated = simulateJudge(topicRef.current, transcript, names);
-    setScorecard(simulated);
-    log("info", "system", `AI Judge (simulated) verdict: ${simulated.winner.toUpperCase()}.`);
-    setJudging(false);
-  }, [log]);
+      if (seq !== judgeSeqRef.current) return;
+      const simulated = simulateJudge(topicRef.current, transcript, names, interim);
+      setScorecard(simulated);
+      log(
+        "info",
+        "system",
+        `AI Judge (simulated) ${interim ? "running leader" : "verdict"}: ${simulated.winner.toUpperCase()}.`,
+      );
+      setJudging(false);
+    },
+    [log],
+  );
 
   const loop = useCallback(async () => {
     if (busyRef.current) return;
@@ -324,6 +349,10 @@ export function useDebate(settings: ArenaSettings) {
     const total = settingsRef.current.rounds * 2;
     while (runningRef.current && turnRef.current < total) {
       await runTurn(turnRef.current);
+      // Live scoring: refresh the scorecard whenever both sides have spoken.
+      if (turnRef.current % 2 === 0 && turnRef.current < total) {
+        void judgeDebate(true);
+      }
     }
     busyRef.current = false;
     if (turnRef.current >= total) {
@@ -333,6 +362,7 @@ export function useDebate(settings: ArenaSettings) {
       void judgeDebate();
     }
   }, [runTurn, log, judgeDebate]);
+
 
 
   const resolveMode = useCallback(async () => {
@@ -377,6 +407,7 @@ export function useDebate(settings: ArenaSettings) {
       setContextTokens(0);
       setLastTelemetry({ alpha: null, beta: null });
       setScorecard(null);
+      judgeSeqRef.current++;
       setJudging(false);
 
       log("info", "system", `Resolution accepted: "${trimmed}"`);
@@ -413,7 +444,10 @@ export function useDebate(settings: ArenaSettings) {
     if (turnRef.current >= total) {
       setPhase("finished");
       void judgeDebate();
+    } else if (turnRef.current % 2 === 0) {
+      void judgeDebate(true);
     }
+
   }, [runTurn, judgeDebate]);
 
   const reset = useCallback(() => {
@@ -432,6 +466,7 @@ export function useDebate(settings: ArenaSettings) {
     setLastTelemetry({ alpha: null, beta: null });
     setContextTokens(0);
     setScorecard(null);
+    judgeSeqRef.current++;
     setJudging(false);
   }, []);
 

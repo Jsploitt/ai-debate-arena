@@ -1,9 +1,19 @@
-import { Gavel, Loader2, Trophy } from "lucide-react";
+import { Activity, Gavel, Loader2, Trophy } from "lucide-react";
 import { JUDGE_CRITERIA } from "@/lib/debate/judge";
 import type { JudgeScorecard, JudgeSideScore, Side } from "@/lib/debate/types";
 import { cn } from "@/lib/utils";
 
-function ScoreRow({ label, value, side }: { label: string; value: number; side: Side }) {
+function ScoreRow({
+  label,
+  value,
+  reason,
+  side,
+}: {
+  label: string;
+  value: number;
+  reason?: string;
+  side: Side;
+}) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase">
@@ -19,9 +29,13 @@ function ScoreRow({ label, value, side }: { label: string; value: number; side: 
           style={{ width: `${(value / 10) * 100}%` }}
         />
       </div>
+      {reason && (
+        <p className="text-[11px] leading-snug text-muted-foreground/90 italic">{reason}</p>
+      )}
     </div>
   );
 }
+
 
 function SideCard({
   side,
@@ -63,7 +77,14 @@ function SideCard({
 
       <div className="space-y-2">
         {JUDGE_CRITERIA.map((c) => (
-          <ScoreRow key={c} label={c} value={score.scores[c]} side={side} />
+          <ScoreRow
+            key={c}
+            label={c}
+            value={score.scores[c]}
+            reason={score.reasons?.[c]}
+            side={side}
+          />
+
         ))}
       </div>
 
@@ -93,6 +114,15 @@ export function JudgePanel({
         <div className="flex items-center gap-2">
           <Gavel className="size-5 text-primary" />
           <h2 className="text-sm font-semibold tracking-[0.18em] uppercase">AI Judge Scorecard</h2>
+          {scorecard?.interim && (
+            <span className="flex items-center gap-1.5 rounded-full border border-primary/50 bg-primary/10 px-2 py-0.5 font-mono text-[10px] tracking-[0.14em] text-primary uppercase">
+              <Activity className="size-3 animate-pulse" />
+              Live · {scorecard.turnsScored} turns
+            </span>
+          )}
+          {judging && scorecard && (
+            <Loader2 className="size-3.5 animate-spin text-primary" aria-label="Updating score" />
+          )}
           {scorecard?.simulated && (
             <span className="rounded-full border border-border/70 px-2 py-0.5 font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
               Heuristic
@@ -117,8 +147,8 @@ export function JudgePanel({
 
       {!judging && !scorecard && (
         <p className="py-6 text-sm text-muted-foreground">
-          The judge scores Logic, Evidence, Rebuttal, Clarity and Persuasion for each side once the
-          debate finishes.
+          The judge scores Logic, Evidence, Rebuttal, Clarity and Persuasion for each side, updating
+          live after every round and explaining each score.
         </p>
       )}
 
@@ -144,14 +174,18 @@ export function JudgePanel({
               <Trophy className="size-4 text-primary" />
               <p className="font-mono text-xs tracking-[0.18em] text-primary uppercase">
                 {scorecard.winner === "tie"
-                  ? "Verdict — Draw"
-                  : `Verdict — ${scorecard.winner === "alpha" ? names.alpha : names.beta} wins`}
+                  ? scorecard.interim
+                    ? "Running score — Level"
+                    : "Verdict — Draw"
+                  : `${scorecard.interim ? "Leading" : "Verdict"} — ${scorecard.winner === "alpha" ? names.alpha : names.beta}${scorecard.interim ? " ahead" : " wins"}`}
               </p>
             </div>
             <p className="text-sm leading-relaxed text-foreground/85">{scorecard.verdict}</p>
           </div>
         </div>
       )}
+
+
     </section>
   );
 }
