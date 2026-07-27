@@ -7,6 +7,7 @@ import {
   Play,
   Terminal,
   Timer,
+  Volume2,
 } from "lucide-react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -17,23 +18,49 @@ function isHardHitting(text: string) {
   return /(wrong|fails|collapses|nonsense|moat|theatre|blow|dismantle|obsolete)/i.test(text);
 }
 
+/** Reveal whole words only (never cuts mid-word) up to the given fraction. */
+function revealWords(text: string, fraction: number): string {
+  if (fraction >= 1) return text;
+  if (fraction <= 0) return "";
+  const tokens = text.split(/(\s+)/);
+  const wordCount = tokens.filter((t) => t.trim()).length;
+  const targetWords = Math.floor(wordCount * fraction);
+  let seen = 0;
+  let out = "";
+  for (const token of tokens) {
+    if (token.trim()) {
+      if (seen >= targetWords) break;
+      seen++;
+    }
+    out += token;
+  }
+  return out;
+}
+
 function MessageBubble({
   message,
   names,
   language = "en",
+  speaking = false,
+  revealFraction = 1,
 }: {
   message: DebateMessage;
   names: Record<string, string>;
   language?: DebateLanguage;
+  speaking?: boolean;
+  /** 0..1 — how much of the text to show, in sync with voice playback. 1 = fully shown. */
+  revealFraction?: number;
 }) {
   const isAlpha = message.side === "alpha";
   const rtl = language === "ar";
+  const visibleContent = revealFraction >= 1 ? message.content : revealWords(message.content, revealFraction);
+  const revealing = revealFraction < 1;
   return (
     <div
       className={cn(
         "arena-rise flex w-full gap-3",
         isAlpha ? "justify-start" : "justify-end",
-        !message.streaming && isHardHitting(message.content) && "arena-shake",
+        !message.streaming && !revealing && isHardHitting(visibleContent) && "arena-shake",
       )}
     >
       <div
@@ -48,6 +75,17 @@ function MessageBubble({
           <span className={cn("font-semibold", isAlpha ? "text-alpha" : "text-beta")}>
             {names[message.side]}
           </span>
+          {speaking && (
+            <span
+              className={cn(
+                "flex items-center gap-1 font-mono normal-case",
+                isAlpha ? "text-alpha" : "text-beta",
+              )}
+            >
+              <Volume2 className="size-3.5 animate-pulse" />
+              Speaking…
+            </span>
+          )}
           <span className="text-muted-foreground">Round {message.round}</span>
           {message.telemetry && (
             <span className="flex items-center gap-3 font-mono text-muted-foreground normal-case">
@@ -85,8 +123,8 @@ function MessageBubble({
             rtl && "text-right",
           )}
         >
-          {message.content}
-          {message.streaming && (
+          {visibleContent}
+          {(message.streaming || revealing) && (
             <span className="ml-0.5 inline-block h-5 w-2 translate-y-0.5 animate-pulse bg-primary" />
           )}
         </p>
@@ -100,11 +138,22 @@ export function ConversationStream({
   names,
   topic,
   language = "en",
+  speakingId = null,
+  revealFraction = 1,
+  revealedIds,
+  syncActive = false,
 }: {
   messages: DebateMessage[];
   names: Record<string, string>;
   topic: string;
   language?: DebateLanguage;
+  speakingId?: string | null;
+  /** 0..1 progress of the currently-speaking turn's voice playback. */
+  revealFraction?: number;
+  /** Turns whose voice has already finished (or were grandfathered in) — shown in full. */
+  revealedIds?: Set<string>;
+  /** When true, turns not yet reached by the voice queue are hidden entirely. */
+  syncActive?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoFollow, setAutoFollow] = useState(false);
@@ -184,9 +233,22 @@ export function ConversationStream({
               {language === "ar" ? "الطرح: " : "RESOLUTION: "}
               {topic}
             </div>
-            {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} names={names} language={language} />
-            ))}
+            {messages
+              .filter((m) => !syncActive || m.id === speakingId || revealedIds?.has(m.id))
+              .map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  names={names}
+                  language={language}
+                  speaking={message.id === speakingId}
+                  revealFraction={
+                    syncActive && message.id === speakingId && !revealedIds?.has(message.id)
+                      ? revealFraction
+                      : 1
+                  }
+                />
+              ))}
           </>
         )}
       </div>

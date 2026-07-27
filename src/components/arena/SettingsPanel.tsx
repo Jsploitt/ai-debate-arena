@@ -10,7 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -20,7 +22,7 @@ import { DEFAULT_JUDGE_WEIGHTS, JUDGE_CRITERIA } from "@/lib/debate/judge";
 
 import { listModels } from "@/lib/debate/ollamaClient";
 
-import { TONE_PRESETS } from "@/lib/debate/presets";
+import { KOKORO_VOICES, TONE_PRESETS } from "@/lib/debate/presets";
 import type { ArenaSettings, DebaterConfig, ExecutionMode, Side } from "@/lib/debate/types";
 import { cn } from "@/lib/utils";
 
@@ -158,6 +160,30 @@ function DebaterForm({
           className="font-mono text-sm"
         />
       </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs tracking-[0.14em] uppercase">Voice (English TTS)</Label>
+        <Select value={config.voice} onValueChange={(voice) => onChange({ voice })}>
+          <SelectTrigger className="font-mono text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(KOKORO_VOICES).map(([group, voices]) => (
+              <SelectGroup key={group}>
+                <SelectLabel>{group}</SelectLabel>
+                {voices.map((v) => (
+                  <SelectItem key={v} value={v} className="font-mono">
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">
+          Arabic mode uses one shared voice for both debaters, regardless of this setting.
+        </p>
+      </div>
     </div>
   );
 }
@@ -172,6 +198,40 @@ export function SettingsPanel({
   return (
     <div className="space-y-6">
       <EndpointsSection settings={settings} onChange={onChange} />
+
+      <section className="space-y-4 rounded-xl border border-border/70 bg-muted/20 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-xs tracking-[0.14em] uppercase">Voice (TTS)</Label>
+          <Switch
+            checked={settings.tts.enabled}
+            onCheckedChange={(enabled) => onChange({ tts: { ...settings.tts, enabled } })}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
+            English (Kokoro) endpoint
+          </Label>
+          <Input
+            value={settings.tts.endpointEn}
+            onChange={(e) => onChange({ tts: { ...settings.tts, endpointEn: e.target.value } })}
+            className="font-mono text-sm"
+            placeholder="http://localhost:8100/synthesize"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
+            Arabic (MMS-TTS) endpoint
+          </Label>
+          <Input
+            value={settings.tts.endpointAr}
+            onChange={(e) => onChange({ tts: { ...settings.tts, endpointAr: e.target.value } })}
+            className="font-mono text-sm"
+            placeholder="http://localhost:8101/synthesize"
+          />
+        </div>
+      </section>
 
       <div className="space-y-2">
         <Label className="text-xs tracking-[0.14em] uppercase">Execution mode</Label>

@@ -1,5 +1,11 @@
 import { DEFAULT_JUDGE_SCALE, DEFAULT_JUDGE_WEIGHTS, DEFAULT_TIE_THRESHOLD, JUDGE_SYSTEM_PROMPT } from "./judge";
-import type { ArenaSettings, DebateLanguage, DebaterConfig, JudgeConfig } from "./types";
+import type { ArenaSettings, DebateLanguage, DebaterConfig, JudgeConfig, TtsSettings } from "./types";
+
+/** Kokoro (English) voice ids, grouped by gender for the Settings panel. */
+export const KOKORO_VOICES = {
+  Male: ["am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael", "am_onyx", "am_puck"],
+  Female: ["af_alloy", "af_bella", "af_heart", "af_jessica", "af_kore", "af_nicole", "af_nova", "af_sarah"],
+};
 
 
 export const TONE_PRESETS: Record<string, string> = {
@@ -34,6 +40,7 @@ const alpha: DebaterConfig = {
   tonePreset: "Analytical",
   thinkingLevel: 1,
   systemPrompt: TONE_PRESETS.Analytical,
+  voice: "am_michael",
 };
 
 const beta: DebaterConfig = {
@@ -45,6 +52,13 @@ const beta: DebaterConfig = {
   tonePreset: "Aggressive",
   thinkingLevel: 1,
   systemPrompt: TONE_PRESETS.Aggressive,
+  voice: "af_heart",
+};
+
+const tts: TtsSettings = {
+  enabled: true,
+  endpointEn: "http://localhost:8100/synthesize",
+  endpointAr: "http://localhost:8101/synthesize",
 };
 
 const judge: JudgeConfig = {
@@ -67,6 +81,7 @@ export const DEFAULT_SETTINGS: ArenaSettings = {
   contextWindow: 8192,
   judge,
   language: "en",
+  tts,
 };
 
 
@@ -114,7 +129,7 @@ export function loadSettings(): ArenaSettings {
         weights: { ...DEFAULT_JUDGE_WEIGHTS, ...(parsed.judge?.weights ?? {}) },
       },
       language: parsed.language ?? DEFAULT_SETTINGS.language,
-
+      tts: { ...DEFAULT_SETTINGS.tts, ...(parsed.tts ?? {}) },
     };
   } catch {
     return DEFAULT_SETTINGS;

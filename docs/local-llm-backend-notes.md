@@ -182,15 +182,150 @@ not sufficient verification. Drive it the way a real user would, and
 actually read the rendered output — don't just check for a 200 or an
 absence of thrown exceptions.
 
+## 8. A fix from the outside can hide inside the data, not the code
+
+When debaters kept narrating themselves and each other by name ("Debater
+Alpha counters...", "Beta says...") even after strengthening the system
+prompt, more instructions only partly helped. The actual leak was
+structural: `useDebate.ts` was handing the next speaker a line reading
+`"Debater Beta قال: [content]"` — literally planting the opponent's name
+into the conversation history fed back to the model. The model wasn't
+ignoring instructions; it was faithfully continuing a pattern it had just
+been shown in its own input.
+
+Fix: stop naming the opponent in that history line at all
+(`"Your opponent just said: ..."`) and add one explicit "never use a name
+or label" instruction, so both models default to natural direct address
+("you") instead of a name they were never supposed to fixate on.
+
+**Lesson:** when a model does something odd *repeatedly and consistently
+across models*, check what's actually in the prompt/history before assuming
+it's ignoring instructions. Sometimes it's behaving exactly as trained — on
+data you didn't realize you were sending it.
+
+## 9. A working demo on your box may be unreachable from someone else's
+
+The app is client-side by design — the browser calls every LLM/TTS endpoint
+directly, no server hop. That means whichever machine has the browser open
+needs a network path to *every* one of those ports, not just the one
+serving the page.
+
+This surfaced directly: `localhost:3000` loaded fine over the user's
+SSH/VS Code tunnel, but the Ollama endpoints on `:11434`–`:11436` showed
+"Unreachable." Nothing was wrong with the containers — `curl` from the box
+itself worked, CORS headers were correct — the tunnel simply hadn't
+forwarded the other ports. Same thing happened again later for the two new
+TTS ports (`:8100`, `:8101`) the moment voice was added.
+
+**Lesson:** for any app where the *browser*, not your server, makes the
+calls, "it works when I test it here" only proves the box is fine. Whether
+the actual user's browser can reach every port involved is a separate
+question — and forgetting to forward a newly-introduced port is the default
+failure mode over tunnels, not the exception.
+
+## 10. Reuse what's already running elsewhere, but re-test the constraint each time
+
+The workstation already had two other projects with working TTS: a
+Kokoro-based English service and an MMS-TTS-ara (Arabic) FastAPI service.
+Both were useful as *recipes*, but neither was reusable as-is — one was
+wired into a Kafka/pub-sub framework specific to its own robot project, the
+other's Dockerfile pulled in a multi-gigabyte vLLM base image just to get a
+working CUDA+torch stack. Extracting the actual model-loading logic (a few
+lines each) into fresh, minimal FastAPI services was faster and lighter
+than adapting either original.
+
+Per the earlier "test the assumption" lesson, GPU support was re-validated
+from scratch rather than assumed to carry over: a plain
+`pip install torch --index-url .../whl/cu130` in a throwaway container
+confirmed CUDA worked before building anything around it. The first real
+pass used CPU-only PyTorch to sidestep version-guessing, and measured
+**~4 seconds** to synthesize one short sentence — for a multi-sentence
+debate turn, an unacceptable delay stacked on top of LLM generation.
+Switching to the same CUDA wheel already proven for the LLM containers
+dropped that to well under a second per turn.
+
+**Lesson:** "there's already a working example of this on the box" is a
+great head start on *what to build*, not a license to skip validating *how
+it should run here* — the constraints that made the original correct (its
+framework, its base image, its hardware path) usually don't transfer as-is,
+and "should be fast enough" deserves a real measurement, not a guess.
+
+## 11. The same category of thing can need different browser plumbing
+
+Ollama's CORS handling (`OLLAMA_ORIGINS=*`) is baked into the binary.
+FastAPI has no equivalent by default — the new TTS services needed
+`CORSMiddleware` added explicitly, or the browser would silently refuse
+every `/synthesize` call. Easy to overlook precisely because the previous
+three containers "just worked" without anyone touching CORS — the
+assumption that "it's an HTTP API, CORS is a solved problem" quietly
+stopped being true the moment the serving framework changed.
+
+## 12. When a UI change makes text and voice race each other, decide who drives
+
+Adding TTS on top of an app whose whole selling point is *live token
+streaming* creates a structural conflict: the LLM finishes a turn in a few
+seconds; naturally-paced speech to read that same turn aloud takes
+30–50 seconds. Playing audio underneath text that's already fully visible
+isn't "sync" no matter how fast the audio starts — the audience finishes
+reading long before the voice finishes speaking.
+
+Fixing that meant explicitly choosing which system paces the UI: fast LLM
+generation, or slower voice playback. The user chose true sync to voice,
+which required:
+- Withholding a turn's text from the transcript entirely until its audio
+  *actually starts playing* (not merely until the LLM finishes generating it).
+- A word-based reveal (`revealFraction = audio.currentTime / audio.duration`,
+  sliced on whole words, never mid-word) that grows the visible text in
+  lockstep with the real `<audio>` element's playback position.
+- Everything else — the round counter, the "Speaking"/"Thinking" status
+  pills — *also* needed to switch from tracking raw generation progress to
+  tracking the voice queue, once text-pacing changed. The first fix
+  (transcript reveal) immediately exposed a second, sibling inconsistency
+  (header showing "Round 3/4" while the transcript was still voicing round 1)
+  that needed the identical treatment.
+
+**Lesson:** when two async systems produce the same content at very
+different speeds, "sync" is a decision about which one becomes the pacer,
+not a small delay/adjustment — and that decision usually has more than one
+place in the UI that needs to agree with it. Surface the trade-off
+explicitly (the alternative — keep fast text, add a read-along highlight —
+was a legitimate different choice) rather than quietly picking one.
+
+## 13. A long wait can look exactly like a stuck queue
+
+After wiring the pacing above, a verification script watched the audio
+queue for 60–75 seconds, saw exactly one request fire, then nothing —
+indistinguishable at a glance from a queue that died after its first item.
+Before touching any code, the actual `<audio>` element's state was
+inspected directly (`duration`, `currentTime`, `readyState`) in the same
+browser session. That gave the real answer: the first turn's WAV blob was
+~3.2 MB, and at 24 kHz/16-bit mono that's **~66 seconds** of legitimate
+audio. The queue wasn't stuck — the test just hadn't waited long enough.
+Re-running with a longer window showed clean, correctly-alternating
+progression through several consecutive turns.
+
+**Lesson:** before patching a suspected bug, get a direct measurement of
+what's actually happening — here, the literal duration computed from the
+blob's own byte size — rather than reasoning from an inconclusive symptom.
+"Nothing happened" and "it takes longer than I waited" look identical from
+the outside.
+
 ## Summary of what changed
 
 | File | Change |
 |---|---|
-| `docker/ollama/Dockerfile`, `docker/ollama/entrypoint.sh` | New — shared image that imports one bind-mounted GGUF into Ollama and warms it up |
-| `docker-compose.yml` | Added `ollama-alpha` / `ollama-beta` / `ollama-judge` services (GPU reservation, health check, named volumes) |
+| `docker/ollama/Dockerfile`, `docker/ollama/entrypoint.sh` | Shared image that imports one bind-mounted GGUF into Ollama and warms it up |
+| `docker/tts-en/`, `docker/tts-ar/` | New — minimal FastAPI wrappers around Kokoro (English, 2 voices) and MMS-TTS-ara (Arabic, 1 voice), both GPU-accelerated via stock PyTorch cu130 wheels |
+| `docker-compose.yml` | `ollama-alpha/beta/judge` + `tts-en`/`tts-ar` services (GPU reservations, health checks, named volumes) |
 | `.env` (gitignored) | Host paths to the three GGUF files — workstation-specific |
-| `src/lib/debate/presets.ts` | Default endpoints/models point at the three new containers instead of a single placeholder |
+| `src/lib/debate/types.ts`, `presets.ts` | Per-debater `voice` field, `tts` settings block (endpoints + master enable), default model/endpoint wiring |
 | `src/lib/debate/ollamaClient.ts` | Merge `message.thinking` into `<think>` tags for tolerant parsing; send `think:false` to avoid the Gemma reasoning-leak bug |
+| `src/lib/debate/useDebate.ts` | Stop feeding debater names/labels into the opponent's turn history so debaters address each other as "you" |
+| `src/lib/debate/tts.ts`, `useSpeech.ts` | New — TTS client and the sequential playback/reveal-sync queue (never overlaps Alpha/Beta, best-effort, drives transcript pacing) |
+| `src/components/arena/ControlDesk.tsx` | "Generate Voice" ON/OFF toggle — fully gates whether any TTS request is made |
+| `src/components/arena/ConversationStream.tsx` | Turns hidden until voiced, then revealed word-by-word in sync with `audio.currentTime` |
+| `src/components/arena/SettingsPanel.tsx` | Per-debater voice picker, TTS endpoint config |
+| `src/routes/index.tsx` | Wires `useSpeech` in; status pills and round counter derived from the voice queue instead of raw generation state |
 
 ## Takeaways that generalize beyond this project
 
@@ -198,7 +333,8 @@ absence of thrown exceptions.
    the backend" was already specified by how the frontend called out.
 2. **Test the load-bearing assumption cheaply before committing to it.**
    One throwaway container settled a hardware-compatibility question that
-   could otherwise have derailed the whole architecture.
+   could otherwise have derailed the whole architecture — and the same
+   five-minute check paid off again for GPU-accelerated TTS.
 3. **"Already have the data locally" is a real constraint that should drive
    tool choice** (Ollama-imports-GGUF vs. vLLM-downloads-from-HF), not just
    an implementation detail to route around.
@@ -207,3 +343,13 @@ absence of thrown exceptions.
 5. **Multi-turn, realistic load finds bugs single-request testing can't.**
    Budget time to actually run the feature the way an end user would,
    especially for anything client-side or conversational.
+6. **When a model repeats an odd pattern, audit what you fed it before
+   blaming the model.** The fix is often in the data, not more instructions.
+7. **A browser-driven app's reachability is a per-port, per-client question.**
+   Your own successful test never proves someone else's browser can reach
+   every endpoint involved — especially over tunnels.
+8. **Syncing two systems that move at different speeds means picking a
+   pacer, not adding a delay** — and checking for sibling UI elements that
+   silently assumed the old pace.
+9. **An inconclusive symptom ("nothing happened") isn't evidence of a bug**
+   until you've measured what "happened" actually looks like from the inside.

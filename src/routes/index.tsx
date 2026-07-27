@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "@/lib/debate/presets";
 import { useDebate } from "@/lib/debate/useDebate";
-import type { ArenaSettings } from "@/lib/debate/types";
+import { useSpeech } from "@/lib/debate/useSpeech";
+import type { ArenaSettings, Side, SpeakerStatus } from "@/lib/debate/types";
 
 const TITLE = "AI Debate Arena — Dell Saudi Arabia Local LLM Showcase";
 const DESCRIPTION =
@@ -50,6 +51,7 @@ function Arena() {
   }, []);
 
   const debate = useDebate(settings);
+  const speech = useSpeech(settings, debate.messages);
 
   const downloadTranscript = useCallback(() => {
     const lines = [
@@ -116,6 +118,28 @@ function Arena() {
 
   const round = Math.floor(debate.turnIndex / 2) + (debate.turnIndex % 2 === 0 ? 1 : 1);
 
+  // While voice sync is active, the LLM generates (and the judge scores) far
+  // ahead of what's actually been read aloud. Align the header's status
+  // pills and round counter with the voice queue instead of raw generation
+  // progress, so they match what the audience actually hears/sees.
+  const effectiveStatus = (side: Side): SpeakerStatus => {
+    if (!speech.syncActive) return debate.status[side];
+    const sideMessages = debate.messages.filter((m) => m.side === side);
+    if (sideMessages.some((m) => m.id === speech.speakingId)) return "speaking";
+    const hasPendingVoice = sideMessages.some(
+      (m) => !m.streaming && m.content.trim() && m.id !== speech.speakingId && !speech.revealedIds.has(m.id),
+    );
+    return hasPendingVoice || debate.status[side] !== "idle" ? "thinking" : "idle";
+  };
+
+  const effectiveRound = (() => {
+    if (!speech.syncActive) return round;
+    const speaking = debate.messages.find((m) => m.id === speech.speakingId);
+    if (speaking) return speaking.round;
+    const lastRevealed = [...debate.messages].reverse().find((m) => speech.revealedIds.has(m.id));
+    return lastRevealed?.round ?? 1;
+  })();
+
   return (
     <div className="flex min-h-screen flex-col">
       <ArenaHeader
@@ -178,10 +202,10 @@ function Arena() {
         <DebaterStage
           alpha={settings.alpha}
           beta={settings.beta}
-          alphaStatus={debate.status.alpha}
-          betaStatus={debate.status.beta}
+          alphaStatus={effectiveStatus("alpha")}
+          betaStatus={effectiveStatus("beta")}
           active={debate.phase === "running"}
-          round={round}
+          round={effectiveRound}
           totalRounds={settings.rounds}
         />
 
@@ -192,6 +216,10 @@ function Arena() {
               messages={debate.messages}
               names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
               topic={debate.topic}
+              speakingId={speech.speakingId}
+              revealFraction={speech.revealFraction}
+              revealedIds={speech.revealedIds}
+              syncActive={speech.syncActive}
             />
           </div>
 
@@ -222,11 +250,14 @@ function Arena() {
           onNextTurn={() => void debate.nextTurn()}
           onReset={() => {
             debate.reset();
+            speech.stop();
             setInput("");
           }}
           onDownload={downloadTranscript}
           language={settings.language}
           onLanguageChange={(language) => updateSettings({ language })}
+          voiceEnabled={settings.tts.enabled}
+          onVoiceEnabledChange={(enabled) => updateSettings({ tts: { ...settings.tts, enabled } })}
         />
       </main>
     </div>

@@ -97,6 +97,48 @@ services:
       retries: 30
       start_period: 600s
 
+  tts-en:
+    build: ./docker/tts-en
+    image: ai-debate-arena-tts-en:latest
+    container_name: tts-en
+    restart: unless-stopped
+    ports:
+      - "8100:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  tts-ar:
+    build: ./docker/tts-ar
+    image: ai-debate-arena-tts-ar:latest
+    container_name: tts-ar
+    restart: unless-stopped
+    ports:
+      - "8101:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
 volumes:
   ollama_alpha_data:
   ollama_beta_data:

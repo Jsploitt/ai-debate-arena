@@ -1,4 +1,4 @@
-import { Download, Pause, Play, RotateCcw, SkipForward, Swords } from "lucide-react";
+import { Download, Mic, MicOff, Pause, Play, RotateCcw, SkipForward, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SAMPLE_TOPICS, SAMPLE_TOPICS_AR } from "@/lib/debate/presets";
@@ -18,6 +18,8 @@ export function ControlDesk({
   onDownload,
   language,
   onLanguageChange,
+  voiceEnabled,
+  onVoiceEnabledChange,
 }: {
   value: string;
   onValueChange: (v: string) => void;
@@ -30,6 +32,8 @@ export function ControlDesk({
   onDownload: () => void;
   language: DebateLanguage;
   onLanguageChange: (lang: DebateLanguage) => void;
+  voiceEnabled: boolean;
+  onVoiceEnabledChange: (enabled: boolean) => void;
 }) {
   const running = phase === "running";
   const isArabic = language === "ar";
@@ -117,6 +121,22 @@ export function ControlDesk({
             </button>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={() => onVoiceEnabledChange(!voiceEnabled)}
+          aria-pressed={voiceEnabled}
+          className={cn(
+            "flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-xs tracking-[0.12em] uppercase transition-colors",
+            voiceEnabled
+              ? "border-primary/60 bg-primary/10 text-primary"
+              : "border-border/70 bg-muted/40 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {voiceEnabled ? <Mic className="size-3.5" /> : <MicOff className="size-3.5" />}
+          Generate voice {voiceEnabled ? "on" : "off"}
+        </button>
+
         <span className="ml-2 font-mono text-xs tracking-[0.14em] text-muted-foreground uppercase">
           Suggested:
         </span>

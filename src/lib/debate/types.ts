@@ -15,6 +15,8 @@ export interface DebaterConfig {
   systemPrompt: string;
   thinkingLevel: number;
   tonePreset: string;
+  /** Kokoro voice id used for English TTS (ignored in Arabic mode). */
+  voice: string;
 }
 
 export interface JudgeConfig {
@@ -67,6 +69,15 @@ export interface JudgeScorecard {
 /** Language the debaters speak in. The UI chrome stays in English. */
 export type DebateLanguage = "en" | "ar";
 
+export interface TtsSettings {
+  /** Master switch — when false, no TTS requests are made at all. */
+  enabled: boolean;
+  /** Kokoro (English) synthesis endpoint. */
+  endpointEn: string;
+  /** MMS-TTS-ara (Arabic) synthesis endpoint. */
+  endpointAr: string;
+}
+
 export interface ArenaSettings {
   alpha: DebaterConfig;
   beta: DebaterConfig;
@@ -76,6 +87,7 @@ export interface ArenaSettings {
   judge: JudgeConfig;
   /** Language the two debaters argue in ("en" default, "ar" for Arabic). */
   language: DebateLanguage;
+  tts: TtsSettings;
 }
 
 
