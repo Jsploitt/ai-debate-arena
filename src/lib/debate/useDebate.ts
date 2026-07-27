@@ -376,6 +376,9 @@ export function useDebate(settings: ArenaSettings) {
       setLogs([]);
       setContextTokens(0);
       setLastTelemetry({ alpha: null, beta: null });
+      setScorecard(null);
+      setJudging(false);
+
       log("info", "system", `Resolution accepted: "${trimmed}"`);
       await resolveMode();
       runningRef.current = true;
