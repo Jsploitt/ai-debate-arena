@@ -54,16 +54,34 @@ function ScoreRow({
   value,
   reason,
   side,
+  scale = 10,
+  weight = 1,
 }: {
   label: string;
   value: number;
   reason?: string;
   side: Side;
+  scale?: number;
+  weight?: number;
 }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase">
-        <span>{label}</span>
+        <span className="flex items-center gap-1.5">
+          {label}
+          {weight !== 1 && (
+            <span
+              className={cn(
+                "rounded-sm border px-1 text-[9px]",
+                weight === 0
+                  ? "border-border/70 text-muted-foreground/70 line-through"
+                  : "border-primary/50 text-primary",
+              )}
+            >
+              x{weight}
+            </span>
+          )}
+        </span>
         <span className={side === "alpha" ? "text-alpha" : "text-beta"}>{value.toFixed(1)}</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted/50">
@@ -72,7 +90,7 @@ function ScoreRow({
             "h-full rounded-full transition-[width] duration-300",
             side === "alpha" ? "bg-alpha" : "bg-beta",
           )}
-          style={{ width: `${(value / 10) * 100}%` }}
+          style={{ width: `${Math.min(100, (value / (scale || 10)) * 100)}%` }}
         />
       </div>
       {reason && (
@@ -88,11 +106,17 @@ function SideCard({
   name,
   score,
   winner,
+  scale,
+  maxTotal,
+  weights,
 }: {
   side: Side;
   name: string;
   score: JudgeSideScore;
   winner: boolean;
+  scale: number;
+  maxTotal: number;
+  weights?: Record<string, number>;
 }) {
   const accent = side === "alpha" ? "text-alpha" : "text-beta";
   return (
@@ -117,7 +141,7 @@ function SideCard({
           <p className={cn("font-mono text-3xl leading-none font-bold", accent)}>
             {score.total.toFixed(1)}
           </p>
-          <p className="font-mono text-[10px] text-muted-foreground">/ 50</p>
+          <p className="font-mono text-[10px] text-muted-foreground">/ {maxTotal}</p>
         </div>
       </div>
 
@@ -129,6 +153,8 @@ function SideCard({
             value={score.scores[c]}
             reason={score.reasons?.[c]}
             side={side}
+            scale={scale}
+            weight={weights?.[c] ?? 1}
           />
 
         ))}
@@ -220,12 +246,18 @@ export function JudgePanel({
               name={names.alpha}
               score={scorecard.alpha}
               winner={scorecard.winner === "alpha"}
+              scale={scorecard.scale ?? 10}
+              maxTotal={scorecard.maxTotal ?? 50}
+              weights={scorecard.weights}
             />
             <SideCard
               side="beta"
               name={names.beta}
               score={scorecard.beta}
               winner={scorecard.winner === "beta"}
+              scale={scorecard.scale ?? 10}
+              maxTotal={scorecard.maxTotal ?? 50}
+              weights={scorecard.weights}
             />
           </div>
 
