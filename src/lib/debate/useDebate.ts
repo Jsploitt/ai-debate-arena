@@ -249,6 +249,7 @@ export function useDebate(settings: ArenaSettings) {
           if (chunkCount % 6 === 0 || chunk.done) {
             log("chunk", side, chunk.raw);
           }
+          if (chunk.model) setResolved(side, chunk.model);
           if (chunk.evalCount) evalCount = chunk.evalCount;
           if (chunk.promptEvalCount) promptTokens = chunk.promptEvalCount;
           if (chunk.done) break;
