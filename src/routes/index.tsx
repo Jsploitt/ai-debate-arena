@@ -6,6 +6,8 @@ import { ConversationStream } from "@/components/arena/ConversationStream";
 import { ControlDesk } from "@/components/arena/ControlDesk";
 import { DebaterStage } from "@/components/arena/DebaterStage";
 import { HttpMonitor, TelemetryPanel } from "@/components/arena/DevConsole";
+import { JudgePanel } from "@/components/arena/JudgePanel";
+
 import { SettingsPanel } from "@/components/arena/SettingsPanel";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
