@@ -81,49 +81,86 @@ export function ConversationStream({
   topic: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const stickRef = useRef(true);
+  const [autoFollow, setAutoFollow] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
 
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
-    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  };
+
+  const scrollToLatest = () => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   };
 
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !stickRef.current) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages]);
+    if (!autoFollow) return;
+    scrollToLatest();
+  }, [messages, autoFollow]);
 
   return (
-    <div
-      ref={scrollRef}
-      onScroll={handleScroll}
-      className="arena-scroll flex-1 space-y-4 overflow-y-auto overscroll-contain px-1 py-2"
-    >
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="mb-2 flex items-center justify-end gap-2">
+        {!autoFollow && !atBottom && messages.length > 0 && (
+          <button
+            type="button"
+            onClick={scrollToLatest}
+            className="flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1 font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:text-foreground"
+          >
+            <ArrowDownToLine className="size-3.5" />
+            Jump to latest
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            const next = !autoFollow;
+            setAutoFollow(next);
+            if (next) scrollToLatest();
+          }}
+          aria-pressed={autoFollow}
+          className={cn(
+            "flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[11px] tracking-[0.12em] uppercase transition-colors",
+            autoFollow
+              ? "border-primary/60 bg-primary/10 text-primary"
+              : "border-border bg-card/70 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {autoFollow ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+          Auto-follow {autoFollow ? "on" : "off"}
+        </button>
+      </div>
 
-      {messages.length === 0 ? (
-        <div className="grid h-full min-h-56 place-items-center rounded-2xl border border-dashed border-border/70 text-center">
-          <div className="max-w-lg px-6">
-            <p className="text-lg font-medium text-muted-foreground">
-              The arena is silent. Enter a resolution below and start the debate.
-            </p>
-            <p className="mt-2 font-mono text-sm text-muted-foreground/70">
-              Two locally hosted models. Zero data leaves this workstation.
-            </p>
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="arena-scroll flex-1 space-y-4 overflow-y-auto overscroll-contain px-1 py-2"
+      >
+        {messages.length === 0 ? (
+          <div className="grid h-full min-h-56 place-items-center rounded-2xl border border-dashed border-border/70 text-center">
+            <div className="max-w-lg px-6">
+              <p className="text-lg font-medium text-muted-foreground">
+                The arena is silent. Enter a resolution below and start the debate.
+              </p>
+              <p className="mt-2 font-mono text-sm text-muted-foreground/70">
+                Two locally hosted models. Zero data leaves this workstation.
+              </p>
+            </div>
           </div>
-        </div>
-      ) : (
-        <>
-          <div className="mx-auto w-fit rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-center font-mono text-sm text-primary">
-            RESOLUTION: {topic}
-          </div>
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} names={names} />
-          ))}
-        </>
-      )}
-      
+        ) : (
+          <>
+            <div className="mx-auto w-fit rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-center font-mono text-sm text-primary">
+              RESOLUTION: {topic}
+            </div>
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message} names={names} />
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }
+
