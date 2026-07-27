@@ -1,7 +1,53 @@
 import { Activity, Gavel, Loader2, Trophy } from "lucide-react";
 import { JUDGE_CRITERIA } from "@/lib/debate/judge";
 import type { JudgeScorecard, JudgeSideScore, Side } from "@/lib/debate/types";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+
+function SideCardSkeleton({ side }: { side: Side }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-2.5 w-36" />
+        </div>
+        <div className="space-y-2 text-right">
+          <Skeleton className="ml-auto h-7 w-14" />
+          <Skeleton className="ml-auto h-2.5 w-8" />
+        </div>
+      </div>
+      <div className="space-y-3">
+        {JUDGE_CRITERIA.map((c) => (
+          <div key={`${side}-${c}`} className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-2.5 w-20" />
+              <Skeleton className="h-2.5 w-6" />
+            </div>
+            <Skeleton className="h-1.5 w-full rounded-full" />
+            <Skeleton className="h-2.5 w-4/5" />
+          </div>
+        ))}
+      </div>
+      <Skeleton className="h-3 w-full" />
+    </div>
+  );
+}
+
+function JudgeSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2">
+        <SideCardSkeleton side="alpha" />
+        <SideCardSkeleton side="beta" />
+      </div>
+      <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
+        <Skeleton className="mb-2 h-3 w-52" />
+        <Skeleton className="h-3 w-full" />
+      </div>
+    </div>
+  );
+}
 
 function ScoreRow({
   label,
@@ -138,12 +184,25 @@ export function JudgePanel({
         </button>
       </header>
 
-      {judging && !scorecard && (
-        <div className="flex items-center gap-3 py-8 text-sm text-muted-foreground">
-          <Loader2 className="size-5 animate-spin text-primary" />
-          The AI Judge is reading the transcript and scoring both debaters…
+      {judging && (
+        <div
+          className="mb-4 flex items-center gap-3 rounded-xl border border-primary/40 bg-primary/5 px-4 py-2.5"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="size-4 animate-spin text-primary" />
+          <p className="font-mono text-[11px] tracking-[0.14em] text-primary uppercase">
+            Judge is updating…
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {scorecard
+              ? "Re-reading the latest turns and adjusting each criterion."
+              : "Reading the transcript and scoring both debaters."}
+          </p>
         </div>
       )}
+
+      {judging && !scorecard && <JudgeSkeleton />}
 
       {!judging && !scorecard && (
         <p className="py-6 text-sm text-muted-foreground">
@@ -153,7 +212,8 @@ export function JudgePanel({
       )}
 
       {scorecard && (
-        <div className="space-y-4">
+        <div className={cn("space-y-4 transition-opacity", judging && "opacity-60")}>
+
           <div className="grid gap-3 md:grid-cols-2">
             <SideCard
               side="alpha"
