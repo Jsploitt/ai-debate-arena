@@ -119,7 +119,7 @@ export function buildJudgeMessages(
     : "The debate is complete. Score it now, with a short reason per criterion. JSON only.";
   const languageNote =
     language === "ar"
-      ? "\n\nNOTE: the debate below is in Arabic. Read and score it in Arabic, but write your JSON reasons, summaries and verdict in English.\n"
+      ? "\n\nمهم: النقاش أدناه باللغة العربية. اقرأه وقيّمه بالعربية، واكتب كل حقول \"reason\" و\"summary\" و\"verdict\" داخل JSON باللغة العربية الفصحى فقط. حافظ على مفاتيح JSON كما هي بالإنجليزية.\n"
       : "";
   return [
     {
