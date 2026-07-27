@@ -345,18 +345,28 @@ export function useDebate(settings: ArenaSettings) {
 
       if (!usingSimulationRef.current) {
         try {
+          const judgeConfig = resolvedRef.current.judge
+            ? { ...s.judge, model: resolvedRef.current.judge }
+            : s.judge;
           log(
             "request",
             "system",
-            `POST ${s.judge.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${s.judge.model} temperature=${s.judge.temperature}`,
+            `POST ${judgeConfig.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${judgeConfig.model} temperature=${judgeConfig.temperature}`,
           );
           const { scorecard: live, raw } = await runLiveJudge(
-            s.judge,
+            judgeConfig,
             topicRef.current,
             transcript,
             names,
             undefined,
-            undefined,
+            (rawChunk) => {
+              try {
+                const parsed = JSON.parse(rawChunk) as { model?: string };
+                if (parsed.model) setResolved("judge", parsed.model);
+              } catch {
+                /* non-JSON keepalive line */
+              }
+            },
             interim,
           );
           if (seq !== judgeSeqRef.current) return;
