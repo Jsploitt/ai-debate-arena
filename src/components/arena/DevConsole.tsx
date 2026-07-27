@@ -128,7 +128,7 @@ export function HttpMonitor({ logs }: { logs: LogEntry[] }) {
           <span className={KIND_COLOR[entry.kind]}>{entry.text}</span>
         </div>
       ))}
-      <div ref={endRef} />
+      
     </div>
   );
 }
