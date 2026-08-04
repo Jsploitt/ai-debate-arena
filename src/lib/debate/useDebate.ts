@@ -4,6 +4,8 @@ import { simulateStream, simulatedTurnText } from "./simulation";
 import { buildRequestBody } from "./ollamaClient";
 import { runLiveJudge, simulateJudge } from "./judge";
 import { LANGUAGE_INSTRUCTION, THINKING_INSTRUCTION } from "./presets";
+import { getMemory, lessonsPromptBlock, recordDebateMemory } from "./memory";
+import type { DebaterMemory } from "./memory";
 
 import type {
   ArenaSettings,
@@ -46,6 +48,7 @@ function systemFor(
   topic: string,
   side: Side,
   language: DebateLanguage = "en",
+  lessons = "",
 ) {
   const stance =
     side === "alpha"
@@ -55,6 +58,7 @@ function systemFor(
     config.systemPrompt.trim(),
     `You are one of two debaters speaking live, out loud, on stage. ${stance}`,
     `Resolution: "${topic}"`,
+    lessons,
     "Speak in first person, directly and only as yourself — never in the third person, and never narrate or describe your own argument from the outside.",
     'Do NOT write phrases like "Debater Alpha argues", "my rebuttal shows", "Alpha\'s case is" or any other self-referential label — those make you sound like a report about the debate, not a participant in it.',
     "Talk straight to your opponent using \"you\"/\"your\", as if replying to what they just said, the way a real person would in a live argument. Never describe the debate's structure or rounds.",
@@ -118,6 +122,8 @@ export function useDebate(settings: ArenaSettings) {
   const busyRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const historyRef = useRef<Record<Side, ChatMessage[]>>({ alpha: [], beta: [] });
+  const memoryRef = useRef<Record<Side, DebaterMemory | null>>({ alpha: null, beta: null });
+  const memoryRecordedRef = useRef(false);
 
   const log = useCallback((kind: LogKind, side: Side | "system", text: string) => {
     setLogs((prev) => {
@@ -193,7 +199,10 @@ export function useDebate(settings: ArenaSettings) {
       }
 
       const payload: ChatMessage[] = [
-        { role: "system", content: systemFor(config, topicValue, side, s.language) },
+        {
+          role: "system",
+          content: systemFor(config, topicValue, side, s.language, lessonsPromptBlock(memoryRef.current[side])),
+        },
         ...historyRef.current[side],
       ];
 
@@ -350,6 +359,14 @@ export function useDebate(settings: ArenaSettings) {
       const seq = ++judgeSeqRef.current;
       const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
       setJudging(true);
+      // Only fold a scorecard into persisted memory once, and only once the debate has
+      // actually run its full course (an early "Re-score" click mid-debate is a preview,
+      // not a final verdict, and should not teach the debaters anything yet).
+      const maybeRecordMemory = (sc: JudgeScorecard) => {
+        if (interim || memoryRecordedRef.current || turnRef.current < s.rounds * 2) return;
+        memoryRecordedRef.current = true;
+        recordDebateMemory(topicRef.current, sc);
+      };
       // Keep the previous scorecard visible while a live update is computed.
       if (!interim) setScorecard(null);
       log(
@@ -395,6 +412,7 @@ export function useDebate(settings: ArenaSettings) {
           if (seq !== judgeSeqRef.current) return;
           if (live) {
             setScorecard(live);
+            maybeRecordMemory(live);
             log(
               "info",
               "system",
@@ -414,6 +432,7 @@ export function useDebate(settings: ArenaSettings) {
       if (seq !== judgeSeqRef.current) return;
       const simulated = simulateJudge(topicRef.current, transcript, names, s.judge, interim, s.language);
       setScorecard(simulated);
+      maybeRecordMemory(simulated);
       log(
         "info",
         "system",
@@ -481,6 +500,8 @@ export function useDebate(settings: ArenaSettings) {
       topicRef.current = trimmed;
       setTopic(trimmed);
       historyRef.current = { alpha: [], beta: [] };
+      memoryRef.current = { alpha: getMemory(trimmed, "alpha"), beta: getMemory(trimmed, "beta") };
+      memoryRecordedRef.current = false;
       turnRef.current = 0;
       setTurnIndex(0);
       setMessages([]);
@@ -538,6 +559,8 @@ export function useDebate(settings: ArenaSettings) {
     turnRef.current = 0;
     topicRef.current = "";
     historyRef.current = { alpha: [], beta: [] };
+    memoryRef.current = { alpha: null, beta: null };
+    memoryRecordedRef.current = false;
     setTopic("");
     setTurnIndex(0);
     setMessages([]);
