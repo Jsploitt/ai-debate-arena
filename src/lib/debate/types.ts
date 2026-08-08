@@ -65,7 +65,6 @@ export interface JudgeScorecard {
   streaming?: boolean;
 }
 
-
 /** Language the debaters speak in. The UI chrome stays in English. */
 export type DebateLanguage = "en" | "ar";
 
@@ -78,6 +77,19 @@ export interface TtsSettings {
   endpointAr: string;
 }
 
+/** Public-display export/QR behaviour. Staff-editable from the control view. */
+export interface ShareSettings {
+  /**
+   * "text" puts the summary itself in the QR so it scans with no connectivity
+   * at all; "url" points at a reachable host instead.
+   */
+  qrMode: "text" | "url";
+  /** Base URL used in "url" mode. */
+  baseUrl: string;
+  /** Seconds the summary is held on screen before the arena resets. */
+  holdSeconds: number;
+}
+
 export interface ArenaSettings {
   alpha: DebaterConfig;
   beta: DebaterConfig;
@@ -88,8 +100,8 @@ export interface ArenaSettings {
   /** Language the two debaters argue in ("en" default, "ar" for Arabic). */
   language: DebateLanguage;
   tts: TtsSettings;
+  share: ShareSettings;
 }
-
 
 export interface Telemetry {
   ttftMs: number;

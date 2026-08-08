@@ -1,24 +1,25 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Settings2, TerminalSquare } from "lucide-react";
-import { ArenaHeader } from "@/components/arena/ArenaHeader";
-import { ConversationStream } from "@/components/arena/ConversationStream";
-import { ControlDesk } from "@/components/arena/ControlDesk";
-import { DebaterStage } from "@/components/arena/DebaterStage";
-import { HttpMonitor, TelemetryPanel } from "@/components/arena/DevConsole";
-import { JudgePanel } from "@/components/arena/JudgePanel";
 
-import { SettingsPanel } from "@/components/arena/SettingsPanel";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { CharacterStage } from "@/components/arena/CharacterStage";
+import { JudgeBanner } from "@/components/arena/JudgeBanner";
+import { LeanRail } from "@/components/arena/LeanRail";
+import { StageTranscript } from "@/components/arena/StageTranscript";
+import { TopicSlot } from "@/components/arena/TopicSlot";
+import { VerdictExport } from "@/components/arena/VerdictExport";
+import { CHARACTERS, characterName, type CharacterState } from "@/lib/arena/characters";
+import { buildSummary, qrPayload } from "@/lib/arena/summary";
+import { topicText, type Topic } from "@/lib/arena/topics";
+import { useArenaHost } from "@/lib/arena/useArenaLink";
+import type { ArenaCommand, ArenaSnapshot } from "@/lib/arena/channel";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "@/lib/debate/presets";
 import { useDebate } from "@/lib/debate/useDebate";
 import { useSpeech } from "@/lib/debate/useSpeech";
 import type { ArenaSettings, Side, SpeakerStatus } from "@/lib/debate/types";
 
-const TITLE = "AI Debate Arena — Dell Saudi Arabia Local LLM Showcase";
+const TITLE = "AI Debate Arena — Dell Technologies Saudi Arabia";
 const DESCRIPTION =
-  "Two locally hosted LLMs debate any topic live, with real-time telemetry, streaming reasoning paths and a raw HTTP monitor. Built for the Dell Saudi Arabia Vision 2030 tech showcase.";
+  "Two locally hosted models debate live, a third scores every round, and the visitor leaves with the summary. Built for Dell Technologies Saudi Arabia at LEAP 2026.";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -28,15 +29,23 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: TITLE },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Arena,
+  component: PublicDisplay,
 });
 
-function Arena() {
+/**
+ * THE PUBLIC DISPLAY.
+ *
+ * This view renders zero staff controls — no settings, no dev console, no
+ * start/pause/reset, no free-text input. Everything a visitor can do is touch
+ * a topic. The staff control view lives at /control in a second window and
+ * talks to this one over BroadcastChannel; this window owns the debate engine
+ * so the stage never depends on another process being alive.
+ */
+function PublicDisplay() {
   const [settings, setSettings] = useState<ArenaSettings>(DEFAULT_SETTINGS);
-  const [input, setInput] = useState("");
+  const [exportVisible, setExportVisible] = useState(false);
 
   useEffect(() => {
     setSettings(loadSettings());
@@ -52,86 +61,76 @@ function Arena() {
 
   const debate = useDebate(settings);
   const speech = useSpeech(settings, debate.messages);
+  const arabic = settings.language === "ar";
 
-  const downloadTranscript = useCallback(() => {
-    const lines = [
-      `# AI Debate Arena — Transcript`,
-      ``,
-      `**Resolution:** ${debate.topic || "(none)"}`,
-      `**Mode:** ${debate.usingSimulation ? "Simulation" : "Live Local API"}`,
-      `**Debate language:** ${settings.language === "ar" ? "Arabic" : "English"}`,
-      `**Generated:** ${new Date().toLocaleString()}`,
-      ``,
-      ...debate.messages.flatMap((m) => {
-        const name = m.side === "alpha" ? settings.alpha.name : settings.beta.name;
-        const model = m.side === "alpha" ? settings.alpha.model : settings.beta.model;
-        return [
-          `## Round ${m.round} — ${name} (${model})`,
-          m.reasoning ? `> Reasoning: ${m.reasoning.replace(/\n/g, " ")}` : "",
-          ``,
-          m.content,
-          m.telemetry
-            ? `\n_TTFT ${m.telemetry.ttftMs}ms · ${m.telemetry.tokensPerSec} tok/s · ${m.telemetry.tokens} tokens_`
-            : "",
-          ``,
-        ];
-      }),
-      ...(debate.scorecard
-        ? [
-            `## AI Judge Scorecard${debate.scorecard.simulated ? " (heuristic)" : ""}${debate.scorecard.interim ? " — provisional (debate in progress)" : ""}`,
-            ``,
-            `| Criterion | ${settings.alpha.name} | Why | ${settings.beta.name} | Why |`,
-            `| --- | --- | --- | --- | --- |`,
-            ...(Object.keys(debate.scorecard.alpha.scores) as Array<
-              keyof typeof debate.scorecard.alpha.scores
-            >).map(
-              (c) =>
-                `| ${c} | ${debate.scorecard!.alpha.scores[c].toFixed(1)} | ${debate.scorecard!.alpha.reasons?.[c] ?? ""} | ${debate.scorecard!.beta.scores[c].toFixed(1)} | ${debate.scorecard!.beta.reasons?.[c] ?? ""} |`,
-            ),
-            `| **Total** | **${debate.scorecard.alpha.total.toFixed(1)}** | | **${debate.scorecard.beta.total.toFixed(1)}** | |`,
+  // ---- what the audience is actually hearing -----------------------------
+  // With voice sync on, generation runs far ahead of playback; the stage must
+  // follow the voice, not the token stream.
+  const effectiveStatus = useCallback(
+    (side: Side): SpeakerStatus => {
+      if (!speech.syncActive) return debate.status[side];
+      const sideMessages = debate.messages.filter((m) => m.side === side);
+      if (sideMessages.some((m) => m.id === speech.speakingId)) return "speaking";
+      const pending = sideMessages.some(
+        (m) =>
+          !m.streaming &&
+          m.content.trim() &&
+          m.id !== speech.speakingId &&
+          !speech.revealedIds.has(m.id),
+      );
+      return pending || debate.status[side] !== "idle" ? "thinking" : "idle";
+    },
+    [debate.messages, debate.status, speech.revealedIds, speech.speakingId, speech.syncActive],
+  );
 
-            ``,
-            `**Winner:** ${
-              debate.scorecard.winner === "tie"
-                ? "Draw"
-                : debate.scorecard.winner === "alpha"
-                  ? settings.alpha.name
-                  : settings.beta.name
-            }`,
-            ``,
-            debate.scorecard.verdict,
-            ``,
-          ]
-        : []),
-    ];
-    const blob = new Blob([lines.filter((l) => l !== undefined).join("\n")], {
-      type: "text/markdown;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `debate-transcript-${Date.now()}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [debate.messages, debate.topic, debate.usingSimulation, debate.scorecard, settings]);
+  const alphaStatus = effectiveStatus("alpha");
+  const betaStatus = effectiveStatus("beta");
 
+  // ---- reacting: the listener answers the speaker's handover -------------
+  const [reacting, setReacting] = useState<Side | null>(null);
+  const lastSpeaker = useRef<Side | null>(null);
+  useEffect(() => {
+    const speaker: Side | null =
+      alphaStatus === "speaking" ? "alpha" : betaStatus === "speaking" ? "beta" : null;
+    if (speaker && speaker !== lastSpeaker.current) {
+      const listener: Side = speaker === "alpha" ? "beta" : "alpha";
+      lastSpeaker.current = speaker;
+      setReacting(listener);
+      const timer = window.setTimeout(() => setReacting(null), 900);
+      return () => window.clearTimeout(timer);
+    }
+  }, [alphaStatus, betaStatus]);
 
-  const round = Math.floor(debate.turnIndex / 2) + (debate.turnIndex % 2 === 0 ? 1 : 1);
+  const characterState = (side: Side, status: SpeakerStatus): CharacterState =>
+    status === "speaking"
+      ? "speaking"
+      : reacting === side
+        ? "reacting"
+        : status === "thinking"
+          ? "thinking"
+          : "idle";
 
-  // While voice sync is active, the LLM generates (and the judge scores) far
-  // ahead of what's actually been read aloud. Align the header's status
-  // pills and round counter with the voice queue instead of raw generation
-  // progress, so they match what the audience actually hears/sees.
-  const effectiveStatus = (side: Side): SpeakerStatus => {
-    if (!speech.syncActive) return debate.status[side];
-    const sideMessages = debate.messages.filter((m) => m.side === side);
-    if (sideMessages.some((m) => m.id === speech.speakingId)) return "speaking";
-    const hasPendingVoice = sideMessages.some(
-      (m) => !m.streaming && m.content.trim() && m.id !== speech.speakingId && !speech.revealedIds.has(m.id),
-    );
-    return hasPendingVoice || debate.status[side] !== "idle" ? "thinking" : "idle";
+  const states: Record<Side, CharacterState> = {
+    alpha: characterState("alpha", alphaStatus),
+    beta: characterState("beta", betaStatus),
   };
 
+  // ---- motion budget -----------------------------------------------------
+  // When the Mizan rail is settling at a turn boundary, the characters stand
+  // still. At most two things move at once, ever.
+  const [railSettling, setRailSettling] = useState(false);
+  const lastScoreStamp = useRef(0);
+  useEffect(() => {
+    const stamp = debate.scorecard?.createdAt ?? 0;
+    if (stamp && stamp !== lastScoreStamp.current) {
+      lastScoreStamp.current = stamp;
+      setRailSettling(true);
+      const timer = window.setTimeout(() => setRailSettling(false), 900);
+      return () => window.clearTimeout(timer);
+    }
+  }, [debate.scorecard]);
+
+  const round = Math.floor(debate.turnIndex / 2) + 1;
   const effectiveRound = (() => {
     if (!speech.syncActive) return round;
     const speaking = debate.messages.find((m) => m.id === speech.speakingId);
@@ -140,126 +139,239 @@ function Arena() {
     return lastRevealed?.round ?? 1;
   })();
 
+  const hasTopic = Boolean(debate.topic);
+  const finished = debate.phase === "finished";
+
+  // ---- verdict → export → reset -----------------------------------------
+  useEffect(() => {
+    if (finished && !debate.judging && debate.scorecard && !debate.scorecard.interim) {
+      const timer = window.setTimeout(() => setExportVisible(true), 2600);
+      return () => window.clearTimeout(timer);
+    }
+  }, [finished, debate.judging, debate.scorecard]);
+
+  const summary = useMemo(
+    () => buildSummary(debate.topic, debate.messages, debate.scorecard, arabic),
+    [debate.topic, debate.messages, debate.scorecard, arabic],
+  );
+
+  const resetArena = useCallback(() => {
+    setExportVisible(false);
+    debate.reset();
+    speech.stop();
+  }, [debate, speech]);
+
+  const pickTopic = useCallback(
+    (topic: Topic) => {
+      if (debate.phase !== "idle") return;
+      void debate.start(topicText(topic, arabic));
+    },
+    [arabic, debate],
+  );
+
+  // ---- control-window link ----------------------------------------------
+  const snapshot: ArenaSnapshot = {
+    phase: debate.phase,
+    topic: debate.topic,
+    round: effectiveRound,
+    totalRounds: settings.rounds,
+    turnIndex: debate.turnIndex,
+    messages: debate.messages,
+    status: { alpha: alphaStatus, beta: betaStatus },
+    scorecard: debate.scorecard,
+    judging: debate.judging,
+    usingSimulation: debate.usingSimulation,
+    health: debate.health as unknown as Record<Side, string>,
+    settings,
+    exportVisible,
+    ts: Date.now(),
+  };
+
+  const onCommand = useCallback(
+    (command: ArenaCommand) => {
+      switch (command.kind) {
+        case "start":
+          if (command.topic.trim()) void debate.start(command.topic.trim());
+          break;
+        case "pause":
+          debate.pause();
+          break;
+        case "resume":
+          debate.resume();
+          break;
+        case "nextTurn":
+          void debate.nextTurn();
+          break;
+        case "reset":
+          resetArena();
+          break;
+        case "judge":
+          void debate.judgeDebate();
+          break;
+        case "settings":
+          updateSettings(command.patch);
+          break;
+        case "showExport":
+          setExportVisible(true);
+          break;
+        case "dismissExport":
+          setExportVisible(false);
+          break;
+      }
+    },
+    [debate, resetArena, updateSettings],
+  );
+
+  useArenaHost(snapshot, onCommand);
+
+  const names: Record<Side, string> = {
+    alpha: characterName("alpha", arabic),
+    beta: characterName("beta", arabic),
+  };
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <ArenaHeader
-        alphaState={debate.health.alpha}
-        betaState={debate.health.beta}
-        alphaModel={debate.resolvedModels.alpha ?? settings.alpha.model}
-        betaModel={debate.resolvedModels.beta ?? settings.beta.model}
-        judgeModel={debate.resolvedModels.judge ?? settings.judge.model}
-        judgeEnabled={settings.judge.enabled}
-        simulation={debate.usingSimulation}
+    <div className="arena-kufic relative flex h-screen w-screen flex-col gap-5 overflow-hidden px-12 py-8">
+      {/* ---- brand line ---- */}
+      <header className="flex shrink-0 items-center justify-between">
+        <div className="flex items-baseline gap-4">
+          <span className="font-display text-title font-bold tracking-tight text-foreground">
+            Dell Technologies
+          </span>
+          <span className="arena-flag-rule h-[2px] w-24 self-center rounded-full" />
+          <span className="arena-label text-steel/80">
+            {arabic ? "ساحة المناظرة" : "AI Debate Arena"}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <RuntimePill
+            simulation={debate.usingSimulation}
+            resolving={debate.health.alpha === "unknown" || debate.health.alpha === "checking"}
+            arabic={arabic}
+          />
+        </div>
+      </header>
+
+      <JudgeBanner
+        scorecard={debate.scorecard}
+        judging={debate.judging}
+        names={names}
+        arabic={arabic}
+        dormant={!hasTopic}
       />
 
-      <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 px-4 py-4 xl:px-8">
-        <div className="flex items-center justify-between gap-3">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="lg">
-                <Settings2 className="size-5" />
-                Configuration
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="arena-scroll w-full overflow-y-auto sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>Arena Configuration</SheetTitle>
-              </SheetHeader>
-              <div className="px-4 pb-8">
-                <SettingsPanel settings={settings} onChange={updateSettings} />
-              </div>
-            </SheetContent>
-          </Sheet>
+      {/* ---- stage ---- */}
+      <div className="flex min-h-0 flex-1 flex-col gap-5">
+        {hasTopic && (
+          <p
+            className="shrink-0 text-center font-display text-title font-semibold text-foreground/90"
+            dir={arabic ? "rtl" : "ltr"}
+          >
+            {debate.topic}
+          </p>
+        )}
 
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="lg">
-                <TerminalSquare className="size-5" />
-                Developer Console
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="arena-scroll w-full overflow-y-auto sm:max-w-2xl">
-              <SheetHeader>
-                <SheetTitle>Developer Console</SheetTitle>
-              </SheetHeader>
-              <div className="space-y-4 px-4 pb-8">
-                <TelemetryPanel
-                  telemetry={debate.lastTelemetry}
-                  contextTokens={debate.contextTokens}
-                  contextWindow={settings.contextWindow}
-                />
-                <div>
-                  <p className="mb-2 font-mono text-xs tracking-[0.14em] text-muted-foreground uppercase">
-                    Live HTTP monitor
-                  </p>
-                  <HttpMonitor logs={debate.logs} />
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+        <div className="flex min-h-0 flex-1 items-end gap-8">
+          <div className="flex h-full min-w-0 flex-1 flex-col justify-end">
+            <CharacterStage
+              states={states}
+              round={effectiveRound}
+              totalRounds={settings.rounds}
+              arabic={arabic}
+              still={railSettling}
+              compact={hasTopic}
+              showRound={hasTopic}
+              center={
+                hasTopic ? null : (
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <p className="font-display text-display-l font-bold text-foreground">
+                      {arabic ? "اختر موضوعاً" : "Touch a topic"}
+                    </p>
+                    <p className="text-body-l text-steel">
+                      {arabic
+                        ? `${CHARACTERS.alpha.nameAr} و${CHARACTERS.beta.nameAr} سيتناظران، والحكم يسجل النقاط`
+                        : `${CHARACTERS.alpha.name} and ${CHARACTERS.beta.name} will argue it out — the judge scores every round`}
+                    </p>
+                    <span className="arena-flag-rule mt-2 w-40 rounded-full" />
+                  </div>
+                )
+              }
+            />
+          </div>
         </div>
 
-        <DebaterStage
-          alpha={settings.alpha}
-          beta={settings.beta}
-          alphaStatus={effectiveStatus("alpha")}
-          betaStatus={effectiveStatus("beta")}
-          active={debate.phase === "running"}
-          round={effectiveRound}
-          totalRounds={settings.rounds}
-        />
+        <LeanRail scorecard={debate.scorecard} settled={finished} arabic={arabic} />
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="arena-panel flex h-[52vh] min-h-[380px] flex-col overflow-hidden rounded-2xl p-4">
-            <ConversationStream
-              language={settings.language}
+        {hasTopic ? (
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            <StageTranscript
               messages={debate.messages}
-              names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
-              topic={debate.topic}
               speakingId={speech.speakingId}
               revealFraction={speech.revealFraction}
               revealedIds={speech.revealedIds}
               syncActive={speech.syncActive}
+              arabic={arabic}
             />
           </div>
+        ) : null}
+      </div>
 
-
-          <aside className="arena-scroll flex max-h-[52vh] min-h-[380px] flex-col gap-3 overflow-y-auto overscroll-contain">
-            <JudgePanel
-              scorecard={debate.scorecard}
-              judging={debate.judging}
-              names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
-              onJudge={() => void debate.judgeDebate()}
-              canJudge={debate.messages.length >= 2}
-              language={settings.language}
-            />
-          </aside>
-        </div>
-
-
-
-
-
-        <ControlDesk
-          value={input}
-          onValueChange={setInput}
-          phase={debate.phase}
-          onStart={() => void debate.start(input)}
-          onPause={debate.pause}
-          onResume={debate.resume}
-          onNextTurn={() => void debate.nextTurn()}
-          onReset={() => {
-            debate.reset();
-            speech.stop();
-            setInput("");
-          }}
-          onDownload={downloadTranscript}
-          language={settings.language}
-          onLanguageChange={(language) => updateSettings({ language })}
-          voiceEnabled={settings.tts.enabled}
-          onVoiceEnabledChange={(enabled) => updateSettings({ tts: { ...settings.tts, enabled } })}
+      {/* ---- the swap slot ---- */}
+      <div className="h-[236px] shrink-0">
+        <TopicSlot
+          mode={hasTopic ? "perspectives" : "scroller"}
+          onPick={pickTopic}
+          scorecard={debate.scorecard}
+          arabic={arabic}
         />
-      </main>
+      </div>
+
+      {/* Dell watermark */}
+      <span className="pointer-events-none absolute bottom-3 right-6 font-display text-data font-semibold tracking-[0.3em] text-hairline">
+        DELL
+      </span>
+
+      {exportVisible && (
+        <VerdictExport
+          summary={summary}
+          qrValue={qrPayload(summary, settings.share.qrMode, settings.share.baseUrl, arabic)}
+          arabic={arabic}
+          seconds={settings.share.holdSeconds}
+          onDone={resetArena}
+        />
+      )}
     </div>
   );
+}
+
+/**
+ * Runtime state. Stays neutral until the health check has actually answered —
+ * claiming "local runtime" for two seconds and then flipping to "simulation"
+ * is the kind of thing a visitor notices and a demo cannot afford.
+ */
+function RuntimePill({
+  simulation,
+  resolving,
+  arabic,
+}: {
+  simulation: boolean;
+  resolving: boolean;
+  arabic: boolean;
+}) {
+  const tone = resolving
+    ? "border-hairline text-steel"
+    : simulation
+      ? "border-judge/50 bg-judge-soft text-judge"
+      : "border-majed/50 text-majed";
+  const label = resolving
+    ? arabic
+      ? "جارٍ الاتصال"
+      : "Connecting"
+    : simulation
+      ? arabic
+        ? "وضع المحاكاة"
+        : "Simulation"
+      : arabic
+        ? "تشغيل محلي"
+        : "Local runtime";
+  return <span className={`arena-label rounded-full border px-4 py-1.5 ${tone}`}>{label}</span>;
 }

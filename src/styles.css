@@ -4,6 +4,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ---------------------------------------------------------------------------
+   AI Debate Arena — LEAP 2026 booth display
+   ---------------------------------------------------------------------------
+   Three chromatic actors, never more: Faisal (Dell blue), Majed (Saudi green)
+   and the Judge (gold). Depth comes from the five-step surface ladder below,
+   not from glow stacked on black — at booth distance near-identical navies
+   collapse into one flat field, so every adjacent step here is separated
+   enough to read from a few metres away.
+--------------------------------------------------------------------------- */
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -11,6 +21,7 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -44,60 +55,129 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --color-alpha: var(--alpha);
-  --color-alpha-soft: var(--alpha-soft);
-  --color-beta: var(--beta);
-  --color-beta-soft: var(--beta-soft);
+
+  /* Surface ladder */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-hairline: var(--hairline);
+
+  /* The three actors */
+  --color-faisal: var(--faisal);
+  --color-faisal-deep: var(--faisal-deep);
+  --color-faisal-soft: var(--faisal-soft);
+  --color-majed: var(--majed);
+  --color-majed-deep: var(--majed-deep);
+  --color-majed-soft: var(--majed-soft);
+  --color-judge: var(--judge-gold);
+  --color-judge-dim: var(--judge-gold-dim);
+  --color-judge-soft: var(--judge-soft);
+
+  /* Legacy aliases so staff-view chrome keeps compiling */
+  --color-alpha: var(--faisal);
+  --color-alpha-soft: var(--faisal-soft);
+  --color-beta: var(--majed);
+  --color-beta-soft: var(--majed-soft);
   --color-steel: var(--steel);
   --color-terminal: var(--terminal);
+
+  --font-display: "Archivo", "Noto Kufi Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Public Sans", "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+  --font-kufi: "Noto Kufi Arabic", "Archivo", sans-serif;
+
+  /* Booth type scale — nothing below 16px ever reaches the public display. */
+  --text-label: 1rem;
+  --text-label--line-height: 1.2;
+  --text-label--letter-spacing: 0.16em;
+  --text-data: 1.125rem;
+  --text-data--line-height: 1.3;
+  --text-body: 1.25rem;
+  --text-body--line-height: 1.55;
+  --text-body-l: 1.5rem;
+  --text-body-l--line-height: 1.5;
+  --text-title: 2rem;
+  --text-title--line-height: 1.15;
+  --text-title--letter-spacing: -0.02em;
+  --text-display-m: 2.75rem;
+  --text-display-m--line-height: 1.08;
+  --text-display-m--letter-spacing: -0.02em;
+  --text-display-l: 4rem;
+  --text-display-l--line-height: 1.02;
+  --text-display-l--letter-spacing: -0.025em;
+  --text-display-xl: 5.5rem;
+  --text-display-xl--line-height: 0.98;
+  --text-display-xl--letter-spacing: -0.03em;
 }
 
 :root {
   --radius: 0.75rem;
-  /* Dell Technologies deep navy canvas */
-  --background: oklch(0.17 0.038 250);
-  --foreground: oklch(0.97 0.006 250);
-  --card: oklch(0.22 0.042 250);
-  --card-foreground: oklch(0.97 0.006 250);
-  --popover: oklch(0.2 0.04 250);
-  --popover-foreground: oklch(0.97 0.006 250);
-  /* Dell blue #0076CE */
-  --primary: oklch(0.62 0.16 246);
-  --primary-foreground: oklch(0.99 0.004 250);
-  --secondary: oklch(0.29 0.04 250);
-  --secondary-foreground: oklch(0.96 0.006 250);
-  --muted: oklch(0.26 0.035 250);
-  --muted-foreground: oklch(0.73 0.022 250);
-  /* Saudi flag green #006C35 lifted for dark UI */
-  --accent: oklch(0.55 0.14 156);
-  --accent-foreground: oklch(0.99 0.004 250);
-  --destructive: oklch(0.62 0.21 25);
-  --destructive-foreground: oklch(0.98 0.005 250);
-  --border: oklch(0.34 0.04 250);
-  --input: oklch(0.31 0.04 250);
-  --ring: oklch(0.62 0.16 246);
-  --chart-1: oklch(0.62 0.16 246);
-  --chart-2: oklch(0.68 0.16 156);
-  --chart-3: oklch(0.74 0.12 232);
-  --chart-4: oklch(0.8 0.13 190);
-  --chart-5: oklch(0.86 0.02 250);
-  --sidebar: oklch(0.2 0.04 250);
-  --sidebar-foreground: oklch(0.97 0.006 250);
-  --sidebar-primary: oklch(0.62 0.16 246);
-  --sidebar-primary-foreground: oklch(0.99 0.004 250);
-  --sidebar-accent: oklch(0.29 0.04 250);
-  --sidebar-accent-foreground: oklch(0.97 0.006 250);
-  --sidebar-border: oklch(0.34 0.04 250);
-  --sidebar-ring: oklch(0.62 0.16 246);
 
-  /* Alpha = Dell blue, Beta = Saudi green */
-  --alpha: oklch(0.66 0.16 246);
-  --alpha-soft: oklch(0.66 0.16 246 / 0.14);
-  --beta: oklch(0.68 0.16 156);
-  --beta-soft: oklch(0.68 0.16 156 / 0.14);
-  --steel: oklch(0.64 0.014 250);
-  --terminal: oklch(0.78 0.16 154);
+  /* Surface ladder (cool navy, five deliberate steps) */
+  --surface-0: #070c16;
+  --surface-1: #0d1524;
+  --surface-2: #152238;
+  --surface-3: #1e3050;
+  --hairline: #2a3f63;
+
+  --background: var(--surface-0);
+  --foreground: #eef4fb;
+  --card: var(--surface-1);
+  --card-foreground: #eef4fb;
+  --popover: var(--surface-2);
+  --popover-foreground: #eef4fb;
+
+  /* Dell blue */
+  --primary: #0076ce;
+  --primary-foreground: #ffffff;
+  --secondary: var(--surface-2);
+  --secondary-foreground: #eef4fb;
+  --muted: var(--surface-2);
+  --muted-foreground: #93a7c4;
+  /* Saudi green */
+  --accent: #006c35;
+  --accent-foreground: #ffffff;
+  --destructive: #e0503f;
+  --destructive-foreground: #ffffff;
+  --border: var(--hairline);
+  --input: #24365a;
+  --ring: #2f9bef;
+
+  --chart-1: #2f9bef;
+  --chart-2: #22b573;
+  --chart-3: #d9a94c;
+  --chart-4: #7fb3e8;
+  --chart-5: #93a7c4;
+
+  --sidebar: var(--surface-1);
+  --sidebar-foreground: #eef4fb;
+  --sidebar-primary: #2f9bef;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: #eef4fb;
+  --sidebar-border: var(--hairline);
+  --sidebar-ring: #2f9bef;
+
+  /* Faisal — argues FOR. Dell blue, lifted for dark surfaces. */
+  --faisal: #2f9bef;
+  --faisal-deep: #0076ce;
+  --faisal-soft: rgb(47 155 239 / 0.14);
+  /* Majed — argues AGAINST. Saudi green, lifted for dark surfaces. */
+  --majed: #22b573;
+  --majed-deep: #006c35;
+  --majed-soft: rgb(34 181 115 / 0.14);
+  /* The judge belongs to neither side: the only warm hue on screen. */
+  --judge-gold: #d9a94c;
+  --judge-gold-dim: #8a6a2c;
+  --judge-soft: rgb(217 169 76 / 0.12);
+
+  --steel: #93a7c4;
+  --terminal: #22b573;
+
+  /* Spotlight — applied as a set, never individually. */
+  --spotlight-scale: 1.06;
+  --dormant-filter: saturate(0.25) brightness(0.62);
 }
 
 @layer base {
@@ -105,72 +185,144 @@
     border-color: var(--color-border);
   }
 
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--surface-0);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv01";
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  /* Scores and counters must not reflow as digits change. */
+  .font-mono,
+  [class*="tabular"] {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Background — square-Kufic lattice.
+   Square Kufic calligraphy is drawn on a strict modular grid; so is a chip
+   interconnect layer. The same orthogonal drawing reads as Najdi architectural
+   ornament and as silicon, which is exactly the overlap this booth is about.
+   Traces are --hairline; the terminals that punctuate them carry the two side
+   colours at low opacity. No mesh, no particles, no blobs.
+--------------------------------------------------------------------------- */
+@utility arena-kufic {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--surface-0);
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
     background-image:
-      /* Dell blue corona */
-      radial-gradient(ellipse 70% 55% at 10% -5%, oklch(0.62 0.16 246 / 0.24), transparent 60%),
-      /* Saudi green corona */
-      radial-gradient(ellipse 70% 55% at 90% -5%, oklch(0.6 0.15 156 / 0.2), transparent 60%),
-      /* green ground sweep, echoing the flag field */
-      radial-gradient(ellipse 120% 40% at 50% 108%, oklch(0.55 0.13 156 / 0.16), transparent 70%),
-      /* geometric arabesque lattice: interlocking diagonals */
-      repeating-linear-gradient(
-        45deg,
-        oklch(0.62 0.16 246 / 0.05) 0 1px,
-        transparent 1px 34px
-      ),
-      repeating-linear-gradient(
-        -45deg,
-        oklch(0.62 0.15 156 / 0.05) 0 1px,
-        transparent 1px 34px
-      ),
-      /* fine tech grid */
-      linear-gradient(oklch(1 0 0 / 0.018) 1px, transparent 1px),
-      linear-gradient(90deg, oklch(1 0 0 / 0.018) 1px, transparent 1px);
+      /* orthogonal lattice */
+      linear-gradient(to right, var(--hairline) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--hairline) 1px, transparent 1px),
+      /* heavier module lines every fourth cell */
+      linear-gradient(to right, var(--hairline) 2px, transparent 2px),
+      linear-gradient(to bottom, var(--hairline) 2px, transparent 2px);
     background-size:
-      100% 100%,
-      100% 100%,
-      100% 100%,
-      auto,
-      auto,
-      44px 44px,
-      44px 44px;
-    background-attachment: fixed;
+      56px 56px,
+      56px 56px,
+      224px 224px,
+      224px 224px;
+    opacity: 0.34;
   }
 
+  /* Terminals: small squares where traces stop, tinted by side. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(
+        circle at 50% 50%,
+        var(--faisal-deep) 0 3px,
+        transparent 3px
+      ),
+      radial-gradient(
+        circle at 50% 50%,
+        var(--majed-deep) 0 3px,
+        transparent 3px
+      );
+    background-size:
+      224px 224px,
+      224px 224px;
+    background-position:
+      0 0,
+      112px 112px;
+    opacity: 0.5;
+    mask-image: radial-gradient(ellipse 90% 75% at 50% 40%, #000 20%, transparent 78%);
+  }
 }
 
-
-@keyframes arena-pulse-ring {
-  0% {
-    transform: scale(0.92);
-    opacity: 0.85;
-  }
-  100% {
-    transform: scale(1.35);
-    opacity: 0;
-  }
+@utility arena-panel {
+  position: relative;
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-2xl);
 }
 
-@keyframes arena-flicker {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  45% {
-    opacity: 0.55;
-  }
-  55% {
-    opacity: 0.9;
-  }
+@utility arena-raised {
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
 }
+
+/* Thin Dell-blue → Saudi-green rule used as a section edge. */
+@utility arena-flag-rule {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--faisal-deep) 18%,
+    #dbe6f2 50%,
+    var(--majed-deep) 82%,
+    transparent
+  );
+}
+
+@utility arena-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
+}
+
+/* Label style used for every uppercase mono caption. */
+@utility arena-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------------
+   Motion budget: at most two things move at once. The marquee runs only while
+   idle; character animation and text streaming stand down while the Mizan rail
+   is settling at a turn boundary. Three orchestrated moments only —
+   scroller→cards swap, turn handover, verdict settle.
+--------------------------------------------------------------------------- */
 
 @keyframes arena-rise {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.985);
+    transform: translateY(28px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -178,104 +330,213 @@
   }
 }
 
-@keyframes arena-shake {
-  0%,
-  100% {
+@keyframes arena-marquee-left {
+  from {
     transform: translate3d(0, 0, 0);
   }
-  20% {
-    transform: translate3d(-3px, 1px, 0);
+  to {
+    transform: translate3d(-50%, 0, 0);
   }
-  40% {
-    transform: translate3d(3px, -1px, 0);
+}
+
+@keyframes arena-marquee-right {
+  from {
+    transform: translate3d(-50%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Scroller exit: each row keeps travelling in its own direction, so the swap
+   reads as the marquee leaving rather than a crossfade. */
+@keyframes arena-exit-left {
+  to {
+    transform: translate3d(-14%, 0, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes arena-exit-right {
+  to {
+    transform: translate3d(14%, 0, 0);
+    opacity: 0;
+  }
+}
+
+/* Slow chest rise. Idle only. */
+@keyframes arena-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.008);
+  }
+}
+
+/* Thinking: a considered sway, not a jitter. */
+@keyframes arena-ponder {
+  0%,
+  100% {
+    transform: rotate(-1.1deg) translateY(0);
+  }
+  50% {
+    transform: rotate(1.1deg) translateY(-3px);
+  }
+}
+
+/* Speaking: emphasis on the beat, driven by --arena-beat duration. */
+@keyframes arena-emphasis {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.012) translateY(-2px);
+  }
+}
+
+/* Reacting: a short recoil, played once. */
+@keyframes arena-recoil {
+  0% {
+    transform: translateX(0) rotate(0);
+  }
+  25% {
+    transform: translateX(-10px) rotate(-2.4deg);
   }
   60% {
-    transform: translate3d(-2px, 1px, 0);
+    transform: translateX(5px) rotate(1.2deg);
+  }
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+}
+
+/* Speaking mouth. Uneven timings so it reads as speech, not a metronome. */
+@keyframes arena-mouth {
+  0%,
+  100% {
+    transform: scaleY(1) scaleX(1);
+  }
+  20% {
+    transform: scaleY(0.35) scaleX(1.1);
+  }
+  45% {
+    transform: scaleY(1.15) scaleX(0.92);
+  }
+  62% {
+    transform: scaleY(0.5) scaleX(1.05);
   }
   80% {
-    transform: translate3d(2px, 0, 0);
+    transform: scaleY(0.95) scaleX(1);
   }
 }
 
-@keyframes arena-spin-slow {
+@utility arena-mouth {
+  animation: arena-mouth 0.62s ease-in-out infinite;
+}
+
+@keyframes arena-halo {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+}
+
+/* Secondary wobble on the Mizan marker: the beam settling after it swings. */
+@keyframes arena-wobble {
+  0% {
+    transform: rotate(0deg);
+  }
+  35% {
+    transform: rotate(7deg);
+  }
+  60% {
+    transform: rotate(-4deg);
+  }
+  80% {
+    transform: rotate(1.6deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@utility arena-wobble {
+  animation: arena-wobble 1.1s cubic-bezier(0.22, 1, 0.36, 1) 1;
+}
+
+@keyframes arena-judge-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes arena-sweep {
+  from {
+    transform: translateX(-100%);
+  }
   to {
-    transform: rotate(360deg);
+    transform: translateX(200%);
   }
-}
-
-@utility arena-ring {
-  animation: arena-pulse-ring 2.1s ease-out infinite;
-}
-
-@utility arena-flicker {
-  animation: arena-flicker 1.6s ease-in-out infinite;
 }
 
 @utility arena-rise {
-  animation: arena-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: arena-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@utility arena-shake {
-  animation: arena-shake 0.5s ease-in-out;
+@utility arena-exit-left {
+  animation: arena-exit-left 0.5s cubic-bezier(0.55, 0, 1, 0.45) both;
 }
 
-@utility arena-spin-slow {
-  animation: arena-spin-slow 12s linear infinite;
+@utility arena-exit-right {
+  animation: arena-exit-right 0.5s cubic-bezier(0.55, 0, 1, 0.45) both;
 }
 
-@utility arena-panel {
-  position: relative;
-  background:
-    linear-gradient(oklch(1 0 0 / 0.03), oklch(1 0 0 / 0)),
-    radial-gradient(ellipse 60% 100% at 0% 0%, oklch(0.62 0.16 246 / 0.07), transparent 60%),
-    radial-gradient(ellipse 60% 100% at 100% 100%, oklch(0.6 0.15 156 / 0.06), transparent 60%),
-    var(--color-card);
-  border: 1px solid var(--color-border);
-  backdrop-filter: blur(6px);
+@utility arena-breathe {
+  animation: arena-breathe 5.5s ease-in-out infinite;
 }
 
-/* Thin Dell-blue → Saudi-green rule used as a section divider / top edge. */
-@utility arena-flag-rule {
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--color-primary) 18%,
-    oklch(0.85 0.02 250 / 0.9) 50%,
-    var(--color-accent) 82%,
-    transparent
-  );
+@utility arena-ponder {
+  animation: arena-ponder 2.4s ease-in-out infinite;
 }
 
-/* Subtle interlocking geometric motif for hero/feature surfaces. */
-@utility arena-geo {
-  position: relative;
-  isolation: isolate;
+@utility arena-emphasis {
+  animation: arena-emphasis 1.4s ease-in-out infinite;
+}
 
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0.5;
-    background-image:
-      repeating-linear-gradient(
-        60deg,
-        oklch(0.62 0.16 246 / 0.06) 0 1px,
-        transparent 1px 26px
-      ),
-      repeating-linear-gradient(
-        -60deg,
-        oklch(0.62 0.15 156 / 0.06) 0 1px,
-        transparent 1px 26px
-      );
-    mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, oklch(0 0 0) 10%, transparent 85%);
+@utility arena-recoil {
+  animation: arena-recoil 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) 1;
+}
+
+@utility arena-halo {
+  animation: arena-halo 3.2s ease-in-out infinite;
+}
+
+@utility arena-judge-pulse {
+  animation: arena-judge-pulse 2.6s ease-in-out infinite;
+}
+
+@utility arena-sweep {
+  animation: arena-sweep 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
-}
-
-
-@utility arena-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
 }

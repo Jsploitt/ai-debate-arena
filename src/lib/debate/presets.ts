@@ -1,12 +1,41 @@
-import { DEFAULT_JUDGE_SCALE, DEFAULT_JUDGE_WEIGHTS, DEFAULT_TIE_THRESHOLD, JUDGE_SYSTEM_PROMPT } from "./judge";
-import type { ArenaSettings, DebateLanguage, DebaterConfig, JudgeConfig, TtsSettings } from "./types";
+import {
+  DEFAULT_JUDGE_SCALE,
+  DEFAULT_JUDGE_WEIGHTS,
+  DEFAULT_TIE_THRESHOLD,
+  JUDGE_SYSTEM_PROMPT,
+} from "./judge";
+import type {
+  ArenaSettings,
+  DebateLanguage,
+  DebaterConfig,
+  JudgeConfig,
+  ShareSettings,
+  TtsSettings,
+} from "./types";
 
 /** Kokoro (English) voice ids, grouped by gender for the Settings panel. */
 export const KOKORO_VOICES = {
-  Male: ["am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael", "am_onyx", "am_puck"],
-  Female: ["af_alloy", "af_bella", "af_heart", "af_jessica", "af_kore", "af_nicole", "af_nova", "af_sarah"],
+  Male: [
+    "am_adam",
+    "am_echo",
+    "am_eric",
+    "am_fenrir",
+    "am_liam",
+    "am_michael",
+    "am_onyx",
+    "am_puck",
+  ],
+  Female: [
+    "af_alloy",
+    "af_bella",
+    "af_heart",
+    "af_jessica",
+    "af_kore",
+    "af_nicole",
+    "af_nova",
+    "af_sarah",
+  ],
 };
-
 
 export const TONE_PRESETS: Record<string, string> = {
   Custom: "",
@@ -32,7 +61,9 @@ export const THINKING_INSTRUCTION = [
 ];
 
 const alpha: DebaterConfig = {
-  name: "Debater Alpha",
+  // Matches the character on the public stage, so judge output and transcripts
+  // speak the same names the audience is looking at.
+  name: "Faisal",
   endpoint: "http://localhost:11434/api/chat",
   model: "nemotron3-nano-30b",
   temperature: 0.8,
@@ -44,7 +75,7 @@ const alpha: DebaterConfig = {
 };
 
 const beta: DebaterConfig = {
-  name: "Debater Beta",
+  name: "Majed",
   endpoint: "http://localhost:11435/api/chat",
   model: "gemma-4-26b",
   temperature: 0.9,
@@ -73,6 +104,12 @@ const judge: JudgeConfig = {
   rules: "",
 };
 
+const share: ShareSettings = {
+  qrMode: "text",
+  baseUrl: "",
+  holdSeconds: 30,
+};
+
 export const DEFAULT_SETTINGS: ArenaSettings = {
   alpha,
   beta,
@@ -82,8 +119,8 @@ export const DEFAULT_SETTINGS: ArenaSettings = {
   judge,
   language: "en",
   tts,
+  share,
 };
-
 
 /** Language directive appended to every debater system prompt. */
 export const LANGUAGE_INSTRUCTION: Record<DebateLanguage, string> = {
@@ -130,6 +167,7 @@ export function loadSettings(): ArenaSettings {
       },
       language: parsed.language ?? DEFAULT_SETTINGS.language,
       tts: { ...DEFAULT_SETTINGS.tts, ...(parsed.tts ?? {}) },
+      share: { ...DEFAULT_SETTINGS.share, ...(parsed.share ?? {}) },
     };
   } catch {
     return DEFAULT_SETTINGS;

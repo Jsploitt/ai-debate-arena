@@ -11,30 +11,12 @@ import {
 } from "lucide-react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { revealWords } from "@/lib/arena/reveal";
 import { cn } from "@/lib/utils";
 import type { DebateLanguage, DebateMessage } from "@/lib/debate/types";
 
 function isHardHitting(text: string) {
   return /(wrong|fails|collapses|nonsense|moat|theatre|blow|dismantle|obsolete)/i.test(text);
-}
-
-/** Reveal whole words only (never cuts mid-word) up to the given fraction. */
-function revealWords(text: string, fraction: number): string {
-  if (fraction >= 1) return text;
-  if (fraction <= 0) return "";
-  const tokens = text.split(/(\s+)/);
-  const wordCount = tokens.filter((t) => t.trim()).length;
-  const targetWords = Math.floor(wordCount * fraction);
-  let seen = 0;
-  let out = "";
-  for (const token of tokens) {
-    if (token.trim()) {
-      if (seen >= targetWords) break;
-      seen++;
-    }
-    out += token;
-  }
-  return out;
 }
 
 function MessageBubble({
@@ -53,7 +35,8 @@ function MessageBubble({
 }) {
   const isAlpha = message.side === "alpha";
   const rtl = language === "ar";
-  const visibleContent = revealFraction >= 1 ? message.content : revealWords(message.content, revealFraction);
+  const visibleContent =
+    revealFraction >= 1 ? message.content : revealWords(message.content, revealFraction);
   const revealing = revealFraction < 1;
   return (
     <div
@@ -66,9 +49,7 @@ function MessageBubble({
       <div
         className={cn(
           "w-full max-w-[min(78ch,88%)] rounded-2xl border px-5 py-4",
-          isAlpha
-            ? "border-alpha/40 bg-alpha-soft"
-            : "border-beta/40 bg-beta-soft",
+          isAlpha ? "border-alpha/40 bg-alpha-soft" : "border-beta/40 bg-beta-soft",
         )}
       >
         <div className="mb-2 flex flex-wrap items-center gap-3 text-xs tracking-[0.16em] uppercase">
@@ -109,8 +90,11 @@ function MessageBubble({
               Reasoning Path
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <pre dir={rtl ? "rtl" : "ltr"} className="arena-scroll mb-3 max-h-56 overflow-auto rounded-lg border border-border/70 bg-background/80 p-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-terminal">
-{message.reasoning}
+              <pre
+                dir={rtl ? "rtl" : "ltr"}
+                className="arena-scroll mb-3 max-h-56 overflow-auto rounded-lg border border-border/70 bg-background/80 p-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-terminal"
+              >
+                {message.reasoning}
               </pre>
             </CollapsibleContent>
           </Collapsible>
@@ -255,4 +239,3 @@ export function ConversationStream({
     </div>
   );
 }
-
