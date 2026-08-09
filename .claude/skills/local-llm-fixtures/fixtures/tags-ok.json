@@ -1,0 +1,22 @@
+{
+  "models": [
+    {
+      "name": "nemotron3-nano-30b:latest",
+      "model": "nemotron3-nano-30b:latest",
+      "size": 18200000000,
+      "details": { "family": "nemotron", "parameter_size": "30B", "quantization_level": "Q4_K_M" }
+    },
+    {
+      "name": "gemma-4-26b:latest",
+      "model": "gemma-4-26b:latest",
+      "size": 15900000000,
+      "details": { "family": "gemma", "parameter_size": "26B", "quantization_level": "Q4_K_M" }
+    },
+    {
+      "name": "nemotron3-nano-4b:latest",
+      "model": "nemotron3-nano-4b:latest",
+      "size": 2600000000,
+      "details": { "family": "nemotron", "parameter_size": "4B", "quantization_level": "Q4_K_M" }
+    }
+  ]
+}

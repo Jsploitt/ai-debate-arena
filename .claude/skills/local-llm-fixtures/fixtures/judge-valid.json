@@ -1,0 +1,44 @@
+{
+  "alpha": {
+    "Logic": {
+      "score": 8.5,
+      "reason": "Chained the cost premise to the staffing conclusion without a gap."
+    },
+    "Evidence": { "score": 7, "reason": "Cited two deployment figures but neither was sourced." },
+    "Rebuttal": {
+      "score": 8,
+      "reason": "Directly answered the switching-cost objection rather than deflecting."
+    },
+    "Clarity": {
+      "score": 9,
+      "reason": "Three numbered claims, each stated before it was defended."
+    },
+    "Persuasion": {
+      "score": 7.5,
+      "reason": "Strong close, though the middle section repeated round one."
+    },
+    "summary": "Disciplined case that stayed on the resolution and answered the strongest objection."
+  },
+  "beta": {
+    "Logic": {
+      "score": 7,
+      "reason": "The analogy to outsourcing was suggestive but never fully argued."
+    },
+    "Evidence": {
+      "score": 8.5,
+      "reason": "Brought a concrete failure case with dates and headcount."
+    },
+    "Rebuttal": {
+      "score": 6.5,
+      "reason": "Reframed the cost point instead of contesting the number."
+    },
+    "Clarity": { "score": 7, "reason": "Dense middle passage mixed three separate objections." },
+    "Persuasion": {
+      "score": 8,
+      "reason": "The closing risk framing landed harder than the opening."
+    },
+    "summary": "Evidence-led opposition that was strongest on precedent and weakest on direct rebuttal."
+  },
+  "winner": "alpha",
+  "verdict": "Alpha wins on logic and clarity, holding a single thesis across all rounds and meeting Beta's strongest objection head-on. Beta's evidence was better sourced but was never connected back to the resolution."
+}

@@ -1,0 +1,9 @@
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","thinking":"Weigh cost against "},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","thinking":"switching risk first."},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":"Cost "},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":"is "},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":"not "},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":"the "},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":"binding "},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":"constraint."},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":""},"done":true,"eval_count":96,"prompt_eval_count":588}

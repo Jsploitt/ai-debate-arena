@@ -1,0 +1,26 @@
+Here is my assessment of the debate. I have scored both sides on all five criteria.
+
+```json
+{
+  "alpha": {
+    "Logic": { "score": 6, "reason": "Premises held but the middle inference was asserted." },
+    "Evidence": { "score": 5.5, "reason": "One statistic, repeated three times, never sourced." },
+    "Rebuttal": { "score": 7, "reason": "Answered the timeline objection with a concrete counter-case." },
+    "Clarity": { "score": 8, "reason": "Plain structure, one claim per paragraph." },
+    "Persuasion": { "score": 6, "reason": "Even delivery, no memorable close." },
+    "summary": "Clear but thinly evidenced."
+  },
+  "beta": {
+    "Logic": { "score": 7.5, "reason": "Built the risk case step by step from a stated premise." },
+    "Evidence": { "score": 8, "reason": "Two named precedents with outcomes." },
+    "Rebuttal": { "score": 7, "reason": "Took on the cost claim directly rather than reframing it." },
+    "Clarity": { "score": 6.5, "reason": "Long second turn buried the main objection." },
+    "Persuasion": { "score": 7.5, "reason": "Closing question reframed the whole motion." },
+    "summary": "Better grounded, slightly less organised."
+  },
+  "winner": "beta",
+  "verdict": "Beta takes it on evidence and logic, grounding every claim in a named precedent. Alpha was clearer but never supplied the support its central statistic needed."
+}
+```
+
+Let me know if you would like me to elaborate on any criterion.
