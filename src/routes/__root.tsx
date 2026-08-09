@@ -11,6 +11,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { SettingsProvider } from "@/components/arena/SettingsProvider";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -72,25 +74,31 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+const TITLE = "Arena of Debate — Two Local LLMs, One Executive Judge";
+const DESCRIPTION =
+  "Pick a motion, appoint a CFO, CTO, CMO or CEO judge, and watch two locally hosted models debate it live under the spotlight — with streaming reasoning, weighted scoring, bilingual voice and a downloadable brief.";
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Dell AI Debate" },
-      { name: "description", content: "AI Debate Arena is a web application that enables two local LLMs to debate user-submitted topics." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Dell AI Debate" },
-      { property: "og:description", content: "AI Debate Arena is a web application that enables two local LLMs to debate user-submitted topics." },
+      { title: TITLE },
+      { name: "description", content: DESCRIPTION },
+      { property: "og:title", content: TITLE },
+      { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Dell AI Debate" },
-      { name: "twitter:description", content: "AI Debate Arena is a web application that enables two local LLMs to debate user-submitted topics." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1a93cab2-10c5-4683-b59d-0afba4d55a94/id-preview-3868f4d4--d3e711d0-129f-422f-83e2-7bd33b88a6af.lovable.app-1785175271888.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1a93cab2-10c5-4683-b59d-0afba4d55a94/id-preview-3868f4d4--d3e711d0-129f-422f-83e2-7bd33b88a6af.lovable.app-1785175271888.png" },
+      { name: "twitter:title", content: TITLE },
+      { name: "twitter:description", content: DESCRIPTION },
     ],
     links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=DM+Sans:wght@400;500;700&display=swap",
+      },
       {
         rel: "stylesheet",
         href: appCss,
@@ -123,8 +131,13 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      {/* Persisted arena settings are shared by every route, so both `/` and
+          `/arena` see the same configuration without a second source of truth. */}
+      <SettingsProvider>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+        <Toaster position="top-center" />
+      </SettingsProvider>
     </QueryClientProvider>
   );
 }

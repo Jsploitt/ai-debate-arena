@@ -1,24 +1,41 @@
-import { useCallback, useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Settings2, TerminalSquare } from "lucide-react";
-import { ArenaHeader } from "@/components/arena/ArenaHeader";
-import { ConversationStream } from "@/components/arena/ConversationStream";
-import { ControlDesk } from "@/components/arena/ControlDesk";
-import { DebaterStage } from "@/components/arena/DebaterStage";
-import { HttpMonitor, TelemetryPanel } from "@/components/arena/DevConsole";
-import { JudgePanel } from "@/components/arena/JudgePanel";
+import { useCallback, useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Gavel, Download, Loader2, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { toast } from "sonner";
 
-import { SettingsPanel } from "@/components/arena/SettingsPanel";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "@/lib/debate/presets";
+import {
+  AGENT_ART,
+  AgentStage,
+  CloudBubble,
+  ScoreBanner,
+  TopicRail,
+} from "@/components/arena/stage";
+import { useSettings } from "@/components/arena/SettingsProvider";
 import { useDebate } from "@/lib/debate/useDebate";
 import { useSpeech } from "@/lib/debate/useSpeech";
-import type { ArenaSettings, Side, SpeakerStatus } from "@/lib/debate/types";
+import {
+  agentMood,
+  cloudText,
+  effectiveRound,
+  leanPercent,
+  runtimeLabel,
+  runtimeState,
+  speakingSide,
+} from "@/lib/debate/presentation";
+import {
+  DEFAULT_PERSONA_ID,
+  PERSONAS,
+  PERSONA_LIST,
+  criterionLabel,
+  personaForWeights,
+  type PersonaId,
+} from "@/lib/personas";
+import { downloadVerdictPdf, verdictDocFromScorecard } from "@/lib/pdf";
 
-const TITLE = "AI Debate Arena — Dell Saudi Arabia Local LLM Showcase";
+const TITLE = "Arena of Debate — Two Local LLMs, One Executive Judge";
 const DESCRIPTION =
-  "Two locally hosted LLMs debate any topic live, with real-time telemetry, streaming reasoning paths and a raw HTTP monitor. Built for the Dell Saudi Arabia Vision 2030 tech showcase.";
+  "Pick a motion, appoint a CFO, CTO, CMO or CEO judge, and watch two locally hosted models debate it live under the spotlight.";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -31,235 +48,297 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Arena,
+  component: ArenaHome,
 });
 
-function Arena() {
-  const [settings, setSettings] = useState<ArenaSettings>(DEFAULT_SETTINGS);
-  const [input, setInput] = useState("");
+const TOPICS_ROW_1 = [
+  "Replace sales with AI agents",
+  "Go fully remote, close offices",
+  "Open-source the core product",
+  "Ban meetings over 15 minutes",
+  "Leave the public cloud",
+  "Four-day work week",
+  "Kill the free tier",
+  "Acquire our competitor",
+  "Freeze hiring, automate",
+  "Rebrand for a new market",
+];
 
-  useEffect(() => {
-    setSettings(loadSettings());
-  }, []);
+const TOPICS_ROW_2 = [
+  "Pay everyone the same salary",
+  "Halve marketing, fund R&D",
+  "Launch in three countries",
+  "Make all documents public",
+  "Scrap annual reviews",
+  "Build our own AI models",
+  "Sunset the oldest product",
+  "Usage-based pricing",
+  "Outsource all support",
+  "Go public in 18 months",
+];
 
-  const updateSettings = useCallback((patch: Partial<ArenaSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      saveSettings(next);
-      return next;
-    });
-  }, []);
+const TOPICS_ROW_1_AR = [
+  "استبدال فريق المبيعات بوكلاء ذكاء اصطناعي",
+  "العمل عن بعد بالكامل وإغلاق المكاتب",
+  "فتح المصدر للمنتج الأساسي",
+  "منع الاجتماعات التي تتجاوز ربع ساعة",
+  "مغادرة السحابة العامة",
+  "أسبوع عمل من أربعة أيام",
+];
 
+const TOPICS_ROW_2_AR = [
+  "توحيد الرواتب بين جميع الموظفين",
+  "تقليص التسويق لتمويل البحث والتطوير",
+  "إتاحة جميع المستندات للجميع",
+  "إلغاء التقييمات السنوية",
+  "بناء نماذج ذكاء اصطناعي خاصة بنا",
+  "التسعير حسب الاستخدام",
+];
+
+function ArenaHome() {
+  const { settings, updateSettings } = useSettings();
   const debate = useDebate(settings);
   const speech = useSpeech(settings, debate.messages);
 
-  const downloadTranscript = useCallback(() => {
-    const lines = [
-      `# AI Debate Arena — Transcript`,
-      ``,
-      `**Resolution:** ${debate.topic || "(none)"}`,
-      `**Mode:** ${debate.usingSimulation ? "Simulation" : "Live Local API"}`,
-      `**Debate language:** ${settings.language === "ar" ? "Arabic" : "English"}`,
-      `**Generated:** ${new Date().toLocaleString()}`,
-      ``,
-      ...debate.messages.flatMap((m) => {
-        const name = m.side === "alpha" ? settings.alpha.name : settings.beta.name;
-        const model = m.side === "alpha" ? settings.alpha.model : settings.beta.model;
-        return [
-          `## Round ${m.round} — ${name} (${model})`,
-          m.reasoning ? `> Reasoning: ${m.reasoning.replace(/\n/g, " ")}` : "",
-          ``,
-          m.content,
-          m.telemetry
-            ? `\n_TTFT ${m.telemetry.ttftMs}ms · ${m.telemetry.tokensPerSec} tok/s · ${m.telemetry.tokens} tokens_`
-            : "",
-          ``,
-        ];
-      }),
-      ...(debate.scorecard
-        ? [
-            `## AI Judge Scorecard${debate.scorecard.simulated ? " (heuristic)" : ""}${debate.scorecard.interim ? " — provisional (debate in progress)" : ""}`,
-            ``,
-            `| Criterion | ${settings.alpha.name} | Why | ${settings.beta.name} | Why |`,
-            `| --- | --- | --- | --- | --- |`,
-            ...(Object.keys(debate.scorecard.alpha.scores) as Array<
-              keyof typeof debate.scorecard.alpha.scores
-            >).map(
-              (c) =>
-                `| ${c} | ${debate.scorecard!.alpha.scores[c].toFixed(1)} | ${debate.scorecard!.alpha.reasons?.[c] ?? ""} | ${debate.scorecard!.beta.scores[c].toFixed(1)} | ${debate.scorecard!.beta.reasons?.[c] ?? ""} |`,
-            ),
-            `| **Total** | **${debate.scorecard.alpha.total.toFixed(1)}** | | **${debate.scorecard.beta.total.toFixed(1)}** | |`,
+  const [topic, setTopic] = useState<string | null>(null);
 
-            ``,
-            `**Winner:** ${
-              debate.scorecard.winner === "tie"
-                ? "Draw"
-                : debate.scorecard.winner === "alpha"
-                  ? settings.alpha.name
-                  : settings.beta.name
-            }`,
-            ``,
-            debate.scorecard.verdict,
-            ``,
-          ]
-        : []),
-    ];
-    const blob = new Blob([lines.filter((l) => l !== undefined).join("\n")], {
-      type: "text/markdown;charset=utf-8",
+  const isArabic = settings.language === "ar";
+  const dir = isArabic ? "rtl" : "ltr";
+  const names = useMemo(
+    () => ({ alpha: settings.alpha.name, beta: settings.beta.name }),
+    [settings.alpha.name, settings.beta.name],
+  );
+
+  // The persona is derived from the real judge weights rather than tracked
+  // separately, so a hand-tuned rubric in the config panel is reflected here
+  // instead of being silently overwritten by a stale local copy.
+  const personaId: PersonaId | null = personaForWeights(settings.judge.weights);
+  const persona = PERSONAS[personaId ?? DEFAULT_PERSONA_ID];
+
+  const speech_ = speech;
+  const speaking = speakingSide(debate.status, debate.messages, speech_);
+  const state = runtimeState({
+    phase: debate.phase,
+    status: debate.status,
+    health: debate.health,
+    messages: debate.messages,
+    judging: debate.judging,
+    usingSimulation: debate.usingSimulation,
+    speech: speech_,
+  });
+
+  const proTotal = debate.scorecard?.alpha.total ?? 0;
+  const conTotal = debate.scorecard?.beta.total ?? 0;
+  const round = effectiveRound(debate.turnIndex, debate.messages, speech_);
+
+  const proCloud = cloudText("alpha", debate.messages, speech_, settings.language);
+  const conCloud = cloudText("beta", debate.messages, speech_, settings.language);
+
+  const started = debate.phase !== "idle" || debate.messages.length > 0;
+  const finished = debate.phase === "finished";
+  const hasFinalVerdict = finished && !!debate.scorecard && !debate.scorecard.interim;
+
+  const rails = useMemo(
+    () => (isArabic ? [TOPICS_ROW_1_AR, TOPICS_ROW_2_AR] : [TOPICS_ROW_1, TOPICS_ROW_2]),
+    [isArabic],
+  );
+
+  const pickPersona = useCallback(
+    (id: PersonaId) => {
+      // Writes the actual judge weights — this is a real settings change, not a
+      // label. Guarded while running so a live debate is not rescored midway.
+      updateSettings({ judge: { ...settings.judge, weights: PERSONAS[id].weights } });
+    },
+    [settings.judge, updateSettings],
+  );
+
+  const startDebate = useCallback(() => {
+    if (!topic || debate.phase === "running") return;
+    void debate.start(topic).catch((error: unknown) => {
+      toast.error(error instanceof Error ? error.message : "The arena could not start.");
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `debate-transcript-${Date.now()}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [debate.messages, debate.topic, debate.usingSimulation, debate.scorecard, settings]);
+  }, [debate, topic]);
 
+  const resetAll = useCallback(() => {
+    debate.reset();
+    speech.stop();
+    setTopic(null);
+  }, [debate, speech]);
 
-  const round = Math.floor(debate.turnIndex / 2) + (debate.turnIndex % 2 === 0 ? 1 : 1);
-
-  // While voice sync is active, the LLM generates (and the judge scores) far
-  // ahead of what's actually been read aloud. Align the header's status
-  // pills and round counter with the voice queue instead of raw generation
-  // progress, so they match what the audience actually hears/sees.
-  const effectiveStatus = (side: Side): SpeakerStatus => {
-    if (!speech.syncActive) return debate.status[side];
-    const sideMessages = debate.messages.filter((m) => m.side === side);
-    if (sideMessages.some((m) => m.id === speech.speakingId)) return "speaking";
-    const hasPendingVoice = sideMessages.some(
-      (m) => !m.streaming && m.content.trim() && m.id !== speech.speakingId && !speech.revealedIds.has(m.id),
+  const downloadBrief = useCallback(() => {
+    if (!debate.scorecard || !topic) return;
+    const doc = verdictDocFromScorecard(debate.scorecard, persona, topic, names);
+    downloadVerdictPdf(
+      doc,
+      persona,
+      topic,
+      winnerLabel(debate.scorecard.winner, names),
+      proTotal,
+      conTotal,
     );
-    return hasPendingVoice || debate.status[side] !== "idle" ? "thinking" : "idle";
-  };
-
-  const effectiveRound = (() => {
-    if (!speech.syncActive) return round;
-    const speaking = debate.messages.find((m) => m.id === speech.speakingId);
-    if (speaking) return speaking.round;
-    const lastRevealed = [...debate.messages].reverse().find((m) => speech.revealedIds.has(m.id));
-    return lastRevealed?.round ?? 1;
-  })();
+  }, [debate.scorecard, persona, topic, names, proTotal, conTotal]);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <ArenaHeader
-        alphaState={debate.health.alpha}
-        betaState={debate.health.beta}
-        alphaModel={debate.resolvedModels.alpha ?? settings.alpha.model}
-        betaModel={debate.resolvedModels.beta ?? settings.beta.model}
-        judgeModel={debate.resolvedModels.judge ?? settings.judge.model}
-        judgeEnabled={settings.judge.enabled}
-        simulation={debate.usingSimulation}
-      />
-
-      <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 px-4 py-4 xl:px-8">
-        <div className="flex items-center justify-between gap-3">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="lg">
-                <Settings2 className="size-5" />
-                Configuration
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="arena-scroll w-full overflow-y-auto sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>Arena Configuration</SheetTitle>
-              </SheetHeader>
-              <div className="px-4 pb-8">
-                <SettingsPanel settings={settings} onChange={updateSettings} />
-              </div>
-            </SheetContent>
-          </Sheet>
-
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="lg">
-                <TerminalSquare className="size-5" />
-                Developer Console
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="arena-scroll w-full overflow-y-auto sm:max-w-2xl">
-              <SheetHeader>
-                <SheetTitle>Developer Console</SheetTitle>
-              </SheetHeader>
-              <div className="space-y-4 px-4 pb-8">
-                <TelemetryPanel
-                  telemetry={debate.lastTelemetry}
-                  contextTokens={debate.contextTokens}
-                  contextWindow={settings.contextWindow}
-                />
-                <div>
-                  <p className="mb-2 font-mono text-xs tracking-[0.14em] text-muted-foreground uppercase">
-                    Live HTTP monitor
-                  </p>
-                  <HttpMonitor logs={debate.logs} />
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+    <main className="flex h-screen flex-col overflow-hidden px-4 py-3">
+      <header className="shrink-0 text-center">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-display text-[10px] tracking-[0.3em] text-muted-foreground uppercase">
+            {debate.usingSimulation ? "Simulation" : "Live local models"}
+          </span>
+          <Link
+            to="/arena"
+            className="font-display inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-3 py-1.5 text-[11px] tracking-[0.2em] text-foreground/85 uppercase backdrop-blur transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+            Control arena
+          </Link>
         </div>
 
-        <DebaterStage
-          alpha={settings.alpha}
-          beta={settings.beta}
-          alphaStatus={effectiveStatus("alpha")}
-          betaStatus={effectiveStatus("beta")}
-          active={debate.phase === "running"}
-          round={effectiveRound}
-          totalRounds={settings.rounds}
+        {!started && <h1 className="gold-text text-4xl font-bold sm:text-5xl">Arena of Debate</h1>}
+
+        {topic && (
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+            <span
+              dir={dir}
+              className="font-display rounded-lg border border-primary/50 bg-primary/10 px-6 py-2 text-xl font-semibold text-primary sm:text-2xl"
+            >
+              {topic}
+            </span>
+            <Button variant="ghost" size="sm" onClick={resetAll}>
+              <RotateCcw aria-hidden="true" /> New
+            </Button>
+          </div>
+        )}
+
+        {started && (
+          <ScoreBanner
+            names={names}
+            proTotal={proTotal}
+            conTotal={conTotal}
+            round={round}
+            totalRounds={settings.rounds}
+            personaTitle={persona.title}
+            leanPercent={leanPercent(proTotal, conTotal)}
+            provisional={debate.scorecard?.interim}
+          />
+        )}
+      </header>
+
+      <section className="relative min-h-0 flex-1" aria-label="Debate stage">
+        <AgentStage
+          label={`${names.alpha}, arguing for the motion`}
+          img={AGENT_ART.alpha[agentMood("alpha", speaking, proTotal, conTotal)]}
+          lit={speaking === "alpha"}
+          dim={speaking === "beta"}
+          position="left"
+        />
+        <AgentStage
+          label={`${names.beta}, arguing against the motion`}
+          img={AGENT_ART.beta[agentMood("beta", speaking, conTotal, proTotal)]}
+          lit={speaking === "beta"}
+          dim={speaking === "alpha"}
+          position="right"
         />
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="arena-panel flex h-[52vh] min-h-[380px] flex-col overflow-hidden rounded-2xl p-4">
-            <ConversationStream
-              language={settings.language}
-              messages={debate.messages}
-              names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
-              topic={debate.topic}
-              speakingId={speech.speakingId}
-              revealFraction={speech.revealFraction}
-              revealedIds={speech.revealedIds}
-              syncActive={speech.syncActive}
-            />
+        <div className="relative z-10 mx-auto flex h-full w-full max-w-[70%] flex-col justify-center gap-4 sm:max-w-[46%]">
+          <div className="sr-only" aria-live="polite">
+            {runtimeLabel(state, debate.usingSimulation)}
           </div>
 
+          {proCloud && (
+            <CloudBubble side="alpha" active={speaking === "alpha"} text={proCloud} dir={dir} />
+          )}
+          {conCloud && (
+            <CloudBubble side="beta" active={speaking === "beta"} text={conCloud} dir={dir} />
+          )}
 
-          <aside className="arena-scroll flex max-h-[52vh] min-h-[380px] flex-col gap-3 overflow-y-auto overscroll-contain">
-            <JudgePanel
-              scorecard={debate.scorecard}
-              judging={debate.judging}
-              names={{ alpha: settings.alpha.name, beta: settings.beta.name }}
-              onJudge={() => void debate.judgeDebate()}
-              canJudge={debate.messages.length >= 2}
-              language={settings.language}
-            />
-          </aside>
+          {!proCloud && !conCloud && started && (
+            <div className="flex items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              {runtimeLabel(state, debate.usingSimulation)}
+            </div>
+          )}
+
+          {!started && (
+            <div className="text-center text-[11px] tracking-[0.3em] text-muted-foreground uppercase">
+              {topic ? "Awaiting the gavel" : "Pick a motion"}
+            </div>
+          )}
         </div>
+      </section>
 
-
-
-
-
-        <ControlDesk
-          value={input}
-          onValueChange={setInput}
-          phase={debate.phase}
-          onStart={() => void debate.start(input)}
-          onPause={debate.pause}
-          onResume={debate.resume}
-          onNextTurn={() => void debate.nextTurn()}
-          onReset={() => {
-            debate.reset();
-            speech.stop();
-            setInput("");
-          }}
-          onDownload={downloadTranscript}
-          language={settings.language}
-          onLanguageChange={(language) => updateSettings({ language })}
-          voiceEnabled={settings.tts.enabled}
-          onVoiceEnabledChange={(enabled) => updateSettings({ tts: { ...settings.tts, enabled } })}
-        />
-      </main>
-    </div>
+      <footer className="shrink-0">
+        {!topic ? (
+          <div className="space-y-1">
+            <TopicRail topics={rails[0]} onPick={setTopic} />
+            <TopicRail topics={rails[1]} onPick={setTopic} reverse />
+          </div>
+        ) : hasFinalVerdict ? (
+          <div className="arena-panel mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-xl px-5 py-3">
+            <div>
+              <div className="font-display text-[11px] tracking-[0.25em] text-primary uppercase">
+                {persona.title} · {persona.doc}
+              </div>
+              <p dir={dir} className="mt-1 text-sm text-foreground/90">
+                Winner:{" "}
+                <span className="text-primary">{winnerLabel(debate.scorecard!.winner, names)}</span>{" "}
+                — {debate.scorecard!.verdict}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button asChild variant="outline" className="font-display">
+                <Link to="/arena">Full scorecard</Link>
+              </Button>
+              <Button className="font-display" onClick={downloadBrief}>
+                <Download aria-hidden="true" /> Download PDF
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-5xl">
+            <h2 className="sr-only">Appoint a judge</h2>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {PERSONA_LIST.map((p) => {
+                const active = p.id === personaId;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={started}
+                    aria-pressed={active}
+                    onClick={() => pickPersona(p.id)}
+                    className={`rounded-xl border px-3 py-2 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60 ${
+                      active
+                        ? "border-primary bg-primary/10 shadow-[0_0_24px_-6px_var(--primary)]"
+                        : "border-border bg-background/40 hover:border-primary/50"
+                    }`}
+                  >
+                    <div className="font-display text-lg font-bold text-primary">{p.title}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      weights {criterionLabel(p.focus)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {!started && (
+              <div className="mt-2 text-center">
+                <Button onClick={startDebate} className="font-display">
+                  <Gavel aria-hidden="true" /> Begin the debate
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </footer>
+    </main>
   );
+}
+
+function winnerLabel(
+  winner: "alpha" | "beta" | "tie",
+  names: { alpha: string; beta: string },
+): string {
+  if (winner === "tie") return "Draw";
+  return winner === "alpha" ? names.alpha : names.beta;
 }

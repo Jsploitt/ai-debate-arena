@@ -132,7 +132,6 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
       queueRef.current.push({ id: m.id, side: m.side, text: m.content });
     }
     if (!playingRef.current && queueRef.current.length > 0) void playNext();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, settings.tts.enabled, playNext]);
 
   const stop = useCallback(() => {

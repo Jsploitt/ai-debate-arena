@@ -4,6 +4,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Design system definition.
+ *
+ * The @theme inline block maps CSS custom properties to Tailwind utility
+ * classes (e.g. --color-primary -> bg-primary, text-primary).
+ *
+ * The :root and .dark blocks define the actual color values using oklch.
+ * All colors MUST use oklch format.
+ *
+ * To add a new semantic color:
+ * 1. Add the variable to :root (light value) and .dark (dark value)
+ * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ */
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -11,6 +25,7 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -44,60 +59,89 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --color-alpha: var(--alpha);
-  --color-alpha-soft: var(--alpha-soft);
-  --color-beta: var(--beta);
-  --color-beta-soft: var(--beta-soft);
-  --color-steel: var(--steel);
-  --color-terminal: var(--terminal);
-  --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
 }
 
 :root {
-  --radius: 0.75rem;
-  /* Dell Technologies deep navy canvas */
-  --background: oklch(0.17 0.038 250);
-  --foreground: oklch(0.97 0.006 250);
-  --card: oklch(0.22 0.042 250);
-  --card-foreground: oklch(0.97 0.006 250);
-  --popover: oklch(0.2 0.04 250);
-  --popover-foreground: oklch(0.97 0.006 250);
-  /* Dell blue #0076CE */
-  --primary: oklch(0.62 0.16 246);
-  --primary-foreground: oklch(0.99 0.004 250);
-  --secondary: oklch(0.29 0.04 250);
+  --radius: 0.5rem;
+  --background: oklch(0.17 0.035 252);
+  --foreground: oklch(0.96 0.006 250);
+  --card: oklch(0.22 0.036 254);
+  --card-foreground: oklch(0.96 0.006 250);
+  --popover: oklch(0.22 0.036 254);
+  --popover-foreground: oklch(0.96 0.006 250);
+  --primary: oklch(0.62 0.15 245);
+  --primary-foreground: oklch(0.98 0.005 250);
+  --secondary: oklch(0.28 0.03 253);
   --secondary-foreground: oklch(0.96 0.006 250);
-  --muted: oklch(0.26 0.035 250);
-  --muted-foreground: oklch(0.73 0.022 250);
-  /* Saudi flag green #006C35 lifted for dark UI */
-  --accent: oklch(0.55 0.14 156);
-  --accent-foreground: oklch(0.99 0.004 250);
-  --destructive: oklch(0.62 0.21 25);
-  --destructive-foreground: oklch(0.98 0.005 250);
-  --border: oklch(0.34 0.04 250);
-  --input: oklch(0.31 0.04 250);
-  --ring: oklch(0.62 0.16 246);
-  --chart-1: oklch(0.62 0.16 246);
-  --chart-2: oklch(0.68 0.16 156);
-  --chart-3: oklch(0.74 0.12 232);
-  --chart-4: oklch(0.8 0.13 190);
-  --chart-5: oklch(0.86 0.02 250);
-  --sidebar: oklch(0.2 0.04 250);
-  --sidebar-foreground: oklch(0.97 0.006 250);
-  --sidebar-primary: oklch(0.62 0.16 246);
-  --sidebar-primary-foreground: oklch(0.99 0.004 250);
-  --sidebar-accent: oklch(0.29 0.04 250);
-  --sidebar-accent-foreground: oklch(0.97 0.006 250);
-  --sidebar-border: oklch(0.34 0.04 250);
-  --sidebar-ring: oklch(0.62 0.16 246);
+  --muted: oklch(0.26 0.025 253);
+  --muted-foreground: oklch(0.72 0.02 250);
+  --accent: oklch(0.32 0.045 245);
+  --accent-foreground: oklch(0.96 0.006 250);
+  --destructive: oklch(0.6 0.19 27);
+  --destructive-foreground: oklch(0.97 0.005 80);
+  --border: oklch(0.32 0.028 252);
+  --input: oklch(0.3 0.028 252);
+  --ring: oklch(0.7 0.12 240);
+  --pro: oklch(0.76 0.11 235);
+  --con: oklch(0.72 0.022 250);
+  --arena-glow: 0 0 50px oklch(0.62 0.15 245 / 0.12);
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.984 0.003 247.858);
+  --sidebar-foreground: oklch(0.129 0.042 264.695);
+  --sidebar-primary: oklch(0.208 0.042 265.755);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-accent: oklch(0.968 0.007 247.896);
+  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-border: oklch(0.929 0.013 255.508);
+  --sidebar-ring: oklch(0.704 0.04 256.788);
+}
 
-  /* Alpha = Dell blue, Beta = Saudi green */
-  --alpha: oklch(0.66 0.16 246);
-  --alpha-soft: oklch(0.66 0.16 246 / 0.14);
-  --beta: oklch(0.68 0.16 156);
-  --beta-soft: oklch(0.68 0.16 156 / 0.14);
-  --steel: oklch(0.64 0.014 250);
-  --terminal: oklch(0.78 0.16 154);
+@theme inline {
+  --color-pro: var(--pro);
+  --color-con: var(--con);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+}
+
+.dark {
+  --background: oklch(0.129 0.042 264.695);
+  --foreground: oklch(0.984 0.003 247.858);
+  --card: oklch(0.208 0.042 265.755);
+  --card-foreground: oklch(0.984 0.003 247.858);
+  --popover: oklch(0.208 0.042 265.755);
+  --popover-foreground: oklch(0.984 0.003 247.858);
+  --primary: oklch(0.929 0.013 255.508);
+  --primary-foreground: oklch(0.208 0.042 265.755);
+  --secondary: oklch(0.279 0.041 260.031);
+  --secondary-foreground: oklch(0.984 0.003 247.858);
+  --muted: oklch(0.279 0.041 260.031);
+  --muted-foreground: oklch(0.704 0.04 256.788);
+  --accent: oklch(0.279 0.041 260.031);
+  --accent-foreground: oklch(0.984 0.003 247.858);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.984 0.003 247.858);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.551 0.027 264.364);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.208 0.042 265.755);
+  --sidebar-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
 @layer base {
@@ -108,69 +152,65 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-body);
     background-image:
-      /* Dell blue corona */
-      radial-gradient(ellipse 70% 55% at 10% -5%, oklch(0.62 0.16 246 / 0.24), transparent 60%),
-      /* Saudi green corona */
-      radial-gradient(ellipse 70% 55% at 90% -5%, oklch(0.6 0.15 156 / 0.2), transparent 60%),
-      /* green ground sweep, echoing the flag field */
-      radial-gradient(ellipse 120% 40% at 50% 108%, oklch(0.55 0.13 156 / 0.16), transparent 70%),
-      /* geometric arabesque lattice: interlocking diagonals */
-      repeating-linear-gradient(
-        45deg,
-        oklch(0.62 0.16 246 / 0.05) 0 1px,
-        transparent 1px 34px
-      ),
-      repeating-linear-gradient(
-        -45deg,
-        oklch(0.62 0.15 156 / 0.05) 0 1px,
-        transparent 1px 34px
-      ),
-      /* fine tech grid */
-      linear-gradient(oklch(1 0 0 / 0.018) 1px, transparent 1px),
-      linear-gradient(90deg, oklch(1 0 0 / 0.018) 1px, transparent 1px);
-    background-size:
-      100% 100%,
-      100% 100%,
-      100% 100%,
-      auto,
-      auto,
-      44px 44px,
-      44px 44px;
+      radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.62 0.15 245 / 0.22), transparent),
+      radial-gradient(ellipse 60% 40% at 10% 100%, oklch(0.76 0.11 235 / 0.08), transparent);
     background-attachment: fixed;
   }
 
-}
-
-
-@keyframes arena-pulse-ring {
-  0% {
-    transform: scale(0.92);
-    opacity: 0.85;
-  }
-  100% {
-    transform: scale(1.35);
-    opacity: 0;
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
   }
 }
 
-@keyframes arena-flicker {
-  0%,
-  100% {
-    opacity: 1;
+@utility arena-panel {
+  background: linear-gradient(160deg, oklch(0.235 0.036 254), oklch(0.195 0.032 253));
+  border: 1px solid var(--border);
+  box-shadow: var(--arena-glow);
+}
+
+@utility gold-text {
+  background: linear-gradient(100deg, oklch(0.93 0.05 235), oklch(0.66 0.15 245));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---- Arena stage ---- */
+@keyframes marquee-x {
+  from {
+    transform: translateX(0);
   }
-  45% {
-    opacity: 0.55;
-  }
-  55% {
-    opacity: 0.9;
+  to {
+    transform: translateX(-50%);
   }
 }
 
-@keyframes arena-rise {
+@utility topic-marquee {
+  animation: marquee-x 42s linear infinite;
+}
+
+@keyframes marquee-x-rev {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@utility topic-marquee-rev {
+  animation: marquee-x-rev 46s linear infinite;
+}
+
+@keyframes bubble-pop {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.985);
+    transform: translateY(8px) scale(0.96);
   }
   to {
     opacity: 1;
@@ -178,104 +218,190 @@
   }
 }
 
-@keyframes arena-shake {
+@utility bubble-pop {
+  animation: bubble-pop 0.35s ease-out;
+}
+
+@keyframes beam-flicker {
   0%,
   100% {
-    transform: translate3d(0, 0, 0);
+    opacity: 0.85;
   }
-  20% {
-    transform: translate3d(-3px, 1px, 0);
-  }
-  40% {
-    transform: translate3d(3px, -1px, 0);
-  }
-  60% {
-    transform: translate3d(-2px, 1px, 0);
-  }
-  80% {
-    transform: translate3d(2px, 0, 0);
+  50% {
+    opacity: 1;
   }
 }
 
-@keyframes arena-spin-slow {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@utility arena-ring {
-  animation: arena-pulse-ring 2.1s ease-out infinite;
-}
-
-@utility arena-flicker {
-  animation: arena-flicker 1.6s ease-in-out infinite;
-}
-
-@utility arena-rise {
-  animation: arena-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@utility arena-shake {
-  animation: arena-shake 0.5s ease-in-out;
-}
-
-@utility arena-spin-slow {
-  animation: arena-spin-slow 12s linear infinite;
-}
-
-@utility arena-panel {
-  position: relative;
-  background:
-    linear-gradient(oklch(1 0 0 / 0.03), oklch(1 0 0 / 0)),
-    radial-gradient(ellipse 60% 100% at 0% 0%, oklch(0.62 0.16 246 / 0.07), transparent 60%),
-    radial-gradient(ellipse 60% 100% at 100% 100%, oklch(0.6 0.15 156 / 0.06), transparent 60%),
-    var(--color-card);
-  border: 1px solid var(--color-border);
-  backdrop-filter: blur(6px);
-}
-
-/* Thin Dell-blue → Saudi-green rule used as a section divider / top edge. */
-@utility arena-flag-rule {
-  height: 2px;
+@utility spotlight-beam {
   background: linear-gradient(
-    90deg,
-    transparent,
-    var(--color-primary) 18%,
-    oklch(0.85 0.02 250 / 0.9) 50%,
-    var(--color-accent) 82%,
-    transparent
+    to bottom,
+    oklch(0.85 0.09 235 / 0.55),
+    oklch(0.8 0.1 240 / 0.16) 45%,
+    transparent 85%
   );
+  clip-path: polygon(38% 0%, 62% 0%, 100% 100%, 0% 100%);
+  animation: beam-flicker 3.2s ease-in-out infinite;
+  filter: blur(2px);
 }
 
-/* Subtle interlocking geometric motif for hero/feature surfaces. */
-@utility arena-geo {
-  position: relative;
-  isolation: isolate;
+@utility stage-floor {
+  background: radial-gradient(ellipse 60% 100% at 50% 0%, oklch(0.62 0.15 245 / 0.35), transparent);
+}
 
-  &::before {
+/* ---- White cloud speech bubble ---- */
+@utility cloud-bubble {
+  position: relative;
+  background: #fff;
+  color: oklch(0.22 0.03 253);
+  border-radius: 2.25rem;
+  filter: drop-shadow(0 10px 30px oklch(0.1 0.03 250 / 0.55));
+
+  &::before,
+  &::after {
     content: "";
     position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0.5;
-    background-image:
-      repeating-linear-gradient(
-        60deg,
-        oklch(0.62 0.16 246 / 0.06) 0 1px,
-        transparent 1px 26px
-      ),
-      repeating-linear-gradient(
-        -60deg,
-        oklch(0.62 0.15 156 / 0.06) 0 1px,
-        transparent 1px 26px
-      );
-    mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, oklch(0 0 0) 10%, transparent 85%);
+    background: #fff;
+    border-radius: 9999px;
   }
 }
 
+@utility cloud-tail-left {
+  &::before {
+    width: 2.6rem;
+    height: 1.9rem;
+    left: 1.6rem;
+    bottom: -1.5rem;
+    border-radius: 0;
+    clip-path: polygon(0% 0%, 100% 0%, 8% 100%);
+  }
+  &::after {
+    display: none;
+  }
+}
 
+@utility cloud-tail-right {
+  &::before {
+    width: 2.6rem;
+    height: 1.9rem;
+    right: 1.6rem;
+    bottom: -1.5rem;
+    border-radius: 0;
+    clip-path: polygon(0% 0%, 100% 0%, 92% 100%);
+  }
+  &::after {
+    display: none;
+  }
+}
+
+/* ---- 3D topic carousel ---- */
+@keyframes spin-y {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(-360deg);
+  }
+}
+
+@keyframes spin-y-rev {
+  from {
+    transform: rotateY(-360deg);
+  }
+  to {
+    transform: rotateY(0deg);
+  }
+}
+
+@utility topic-ring {
+  transform-style: preserve-3d;
+  animation: spin-y 34s linear infinite;
+}
+
+@utility topic-ring-rev {
+  transform-style: preserve-3d;
+  animation: spin-y-rev 40s linear infinite;
+}
+
+/* --------------------------------------------------------------------------
+ * Additions beyond the reference design.
+ *
+ * The reference is a single locked-viewport page and never scrolls a panel,
+ * has no reduced-motion handling, and has no RTL content. This app needs all
+ * three, so they live here rather than being folded into the ported blocks.
+ * -------------------------------------------------------------------------- */
+
+/* Thin scrollbar for panels that scroll on /arena. */
 @utility arena-scroll {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
+  scrollbar-color: var(--border) transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 999px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: var(--ring);
+  }
+}
+
+/*
+ * Arabic needs more vertical room than Latin at the same size, and the display
+ * font has no Arabic coverage — so Arabic content falls through to the system
+ * stack deliberately rather than rendering at a mismatched weight.
+ */
+@utility rtl-content {
+  direction: rtl;
+  text-align: right;
+  line-height: 1.9;
+}
+
+/*
+ * On touch devices there is no hover, so the reference's hover-to-pause escape
+ * hatch does not exist and the topic pills would be a permanently moving tap
+ * target. Hold them still instead.
+ */
+@media (hover: none) {
+  .topic-marquee,
+  .topic-marquee-rev {
+    animation: none !important;
+  }
+}
+
+/*
+ * Reduced motion. The marquees, spotlight flicker, bubble pop and 3D rings are
+ * all decorative, so they stand down entirely; functional transitions collapse
+ * to near-instant rather than disappearing, so state changes stay perceptible.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .topic-marquee,
+  .topic-marquee-rev,
+  .topic-ring,
+  .topic-ring-rev {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .spotlight-beam {
+    animation: none !important;
+    opacity: 0.9;
+  }
 }

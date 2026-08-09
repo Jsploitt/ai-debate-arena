@@ -16,7 +16,6 @@ import type {
   LogKind,
   JudgeScorecard,
   Side,
-
   SpeakerStatus,
   Telemetry,
 } from "./types";
@@ -48,17 +47,15 @@ function systemFor(
   language: DebateLanguage = "en",
 ) {
   const stance =
-    side === "alpha"
-      ? "You argue FOR the resolution."
-      : "You argue AGAINST the resolution.";
+    side === "alpha" ? "You argue FOR the resolution." : "You argue AGAINST the resolution.";
   return [
     config.systemPrompt.trim(),
     `You are one of two debaters speaking live, out loud, on stage. ${stance}`,
     `Resolution: "${topic}"`,
     "Speak in first person, directly and only as yourself — never in the third person, and never narrate or describe your own argument from the outside.",
     'Do NOT write phrases like "Debater Alpha argues", "my rebuttal shows", "Alpha\'s case is" or any other self-referential label — those make you sound like a report about the debate, not a participant in it.',
-    "Talk straight to your opponent using \"you\"/\"your\", as if replying to what they just said, the way a real person would in a live argument. Never describe the debate's structure or rounds.",
-    "Never refer to your opponent by any name or label (not \"Beta\", \"Alpha\", \"my opponent\", \"Debater X\", etc.) — call them \"you\" every time, exactly like a real person arguing face to face never says the other person's debate title out loud.",
+    'Talk straight to your opponent using "you"/"your", as if replying to what they just said, the way a real person would in a live argument. Never describe the debate\'s structure or rounds.',
+    'Never refer to your opponent by any name or label (not "Beta", "Alpha", "my opponent", "Debater X", etc.) — call them "you" every time, exactly like a real person arguing face to face never says the other person\'s debate title out loud.',
     "Respond with one focused argument. Never role-play the opponent. Never use bullet lists.",
     THINKING_INSTRUCTION[Math.min(config.thinkingLevel, THINKING_INSTRUCTION.length - 1)],
     LANGUAGE_INSTRUCTION[language],
@@ -107,9 +104,6 @@ export function useDebate(settings: ArenaSettings) {
     setResolvedModels((prev) => ({ ...prev, [slot]: model }));
   }, []);
 
-
-
-
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const topicRef = useRef("");
@@ -132,10 +126,7 @@ export function useDebate(settings: ArenaSettings) {
       alpha: h.alpha === "online" ? "online" : "checking",
       beta: h.beta === "online" ? "online" : "checking",
     }));
-    const [a, b] = await Promise.all([
-      checkHealth(s.alpha.endpoint),
-      checkHealth(s.beta.endpoint),
-    ]);
+    const [a, b] = await Promise.all([checkHealth(s.alpha.endpoint), checkHealth(s.beta.endpoint)]);
     setHealth({ alpha: a ? "online" : "offline", beta: b ? "online" : "offline" });
 
     // Ask each reachable runtime which models it actually serves, and bind the
@@ -179,9 +170,7 @@ export function useDebate(settings: ArenaSettings) {
       const round = Math.floor(index / 2) + 1;
       const topicValue = topicRef.current;
 
-      const opponentLast = [...historyRef.current[side]]
-        .reverse()
-        .find((m) => m.role === "user");
+      const opponentLast = [...historyRef.current[side]].reverse().find((m) => m.role === "user");
       if (!opponentLast) {
         historyRef.current[side].push({
           role: "user",
@@ -218,7 +207,10 @@ export function useDebate(settings: ArenaSettings) {
         side,
         `POST ${live ? config.endpoint : "simulation://local"} \n` +
           JSON.stringify(
-            { headers: { "Content-Type": "application/json" }, body: buildRequestBody(config, payload) },
+            {
+              headers: { "Content-Type": "application/json" },
+              body: buildRequestBody(config, payload),
+            },
             null,
             2,
           ),
@@ -255,7 +247,9 @@ export function useDebate(settings: ArenaSettings) {
             const parts = splitReasoning(raw);
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === messageId ? { ...m, content: parts.content, reasoning: parts.reasoning } : m,
+                m.id === messageId
+                  ? { ...m, content: parts.content, reasoning: parts.reasoning }
+                  : m,
               ),
             );
           }
@@ -270,7 +264,11 @@ export function useDebate(settings: ArenaSettings) {
         }
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        log("error", side, `${msg} — falling back to Simulation Mode. If this is a CORS error, restart Ollama with OLLAMA_ORIGINS="*".`);
+        log(
+          "error",
+          side,
+          `${msg} — falling back to Simulation Mode. If this is a CORS error, restart Ollama with OLLAMA_ORIGINS="*".`,
+        );
         usingSimulationRef.current = true;
         setUsingSimulation(true);
         const fallback = simulatedTurnText(topicValue, side, index >> 1, s.language);
@@ -286,7 +284,9 @@ export function useDebate(settings: ArenaSettings) {
             const parts = splitReasoning(raw);
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === messageId ? { ...m, content: parts.content, reasoning: parts.reasoning } : m,
+                m.id === messageId
+                  ? { ...m, content: parts.content, reasoning: parts.reasoning }
+                  : m,
               ),
             );
           }
@@ -308,7 +308,13 @@ export function useDebate(settings: ArenaSettings) {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId
-            ? { ...m, streaming: false, content: parts.content || raw, reasoning: parts.reasoning, telemetry }
+            ? {
+                ...m,
+                streaming: false,
+                content: parts.content || raw,
+                reasoning: parts.reasoning,
+                telemetry,
+              }
             : m,
         ),
       );
@@ -403,7 +409,11 @@ export function useDebate(settings: ArenaSettings) {
             setJudging(false);
             return;
           }
-          log("error", "system", `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`);
+          log(
+            "error",
+            "system",
+            `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`,
+          );
         } catch (error) {
           if (seq !== judgeSeqRef.current) return;
           const msg = error instanceof Error ? error.message : String(error);
@@ -412,7 +422,14 @@ export function useDebate(settings: ArenaSettings) {
       }
 
       if (seq !== judgeSeqRef.current) return;
-      const simulated = simulateJudge(topicRef.current, transcript, names, s.judge, interim, s.language);
+      const simulated = simulateJudge(
+        topicRef.current,
+        transcript,
+        names,
+        s.judge,
+        interim,
+        s.language,
+      );
       setScorecard(simulated);
       log(
         "info",
@@ -444,8 +461,6 @@ export function useDebate(settings: ArenaSettings) {
     }
   }, [runTurn, log, judgeDebate]);
 
-
-
   const resolveMode = useCallback(async () => {
     const s = settingsRef.current;
     if (s.mode === "simulation") {
@@ -459,7 +474,11 @@ export function useDebate(settings: ArenaSettings) {
     if (s.mode === "live") {
       usingSimulationRef.current = false;
       setUsingSimulation(false);
-      log("info", "system", `Live Local API Mode forced. Health: alpha=${result.alpha}, beta=${result.beta}.`);
+      log(
+        "info",
+        "system",
+        `Live Local API Mode forced. Health: alpha=${result.alpha}, beta=${result.beta}.`,
+      );
       return;
     }
     usingSimulationRef.current = !bothLive;
@@ -528,7 +547,6 @@ export function useDebate(settings: ArenaSettings) {
     } else if (turnRef.current % 2 === 0) {
       void judgeDebate(true);
     }
-
   }, [runTurn, judgeDebate]);
 
   const reset = useCallback(() => {
@@ -574,6 +592,5 @@ export function useDebate(settings: ArenaSettings) {
     reset,
     refreshHealth,
     setTopic,
-
   };
 }
