@@ -65,7 +65,7 @@ const alpha: DebaterConfig = {
   // speak the same names the audience is looking at.
   name: "Faisal",
   endpoint: "http://localhost:11434/api/chat",
-  model: "nemotron3-nano-30b",
+  model: "nemotron-mini:latest",
   temperature: 0.8,
   topP: 0.9,
   tonePreset: "Analytical",
@@ -73,11 +73,10 @@ const alpha: DebaterConfig = {
   systemPrompt: TONE_PRESETS.Analytical,
   voice: "am_michael",
 };
-
 const beta: DebaterConfig = {
   name: "Majed",
-  endpoint: "http://localhost:11435/api/chat",
-  model: "gemma-4-26b",
+  endpoint: "http://localhost:11434/api/chat",
+  model: "gemma2:27b
   temperature: 0.9,
   topP: 0.95,
   tonePreset: "Aggressive",
@@ -94,8 +93,8 @@ const tts: TtsSettings = {
 
 const judge: JudgeConfig = {
   enabled: true,
-  endpoint: "http://localhost:11436/api/chat",
-  model: "nemotron3-nano-4b",
+  endpoint: "http://localhost:11434/api/chat",
+  model: "qwen2.5:14b",
   temperature: 0.2,
   systemPrompt: JUDGE_SYSTEM_PROMPT,
   weights: { ...DEFAULT_JUDGE_WEIGHTS },
