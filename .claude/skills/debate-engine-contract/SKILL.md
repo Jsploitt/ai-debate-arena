@@ -1,20 +1,31 @@
 ---
 name: debate-engine-contract
-description: The public API of the debate engine — useDebate and useSpeech return shapes, the ArenaSettings/JudgeScorecard type surface, the one-state-machine rule, and the SSR-safety boundary for localStorage, audio and object URLs. Load before consuming or changing anything under src/lib/debate/.
+description: The public API of the debate engine and shared runtime — useDebate/useSpeech internals, useDebateRuntime route contract, the ArenaSettings/JudgeScorecard type surface, the one-live-runtime rule, cross-tab owner/mirror behavior, and SSR-safety boundaries. Load before consuming or changing anything under src/lib/debate/ or the debate runtime provider.
 ---
 
 # Debate engine contract
 
-`src/lib/debate/` is the application. The UI is a view over it. Treat these shapes as a published
-API: additive changes are cheap, renames and removals require a caller audit.
+`src/lib/debate/` is the application engine. `DebateRuntimeProvider` is the route-facing runtime bridge. The UI is a view over that contract. Treat these shapes as a published API: additive changes are cheap, renames and removals require a caller audit.
 
-## The one-state-machine rule
+## The one-live-runtime rule
 
-`useDebate` owns the debate lifecycle. There is exactly one instance per route, and no component
-may reimplement start/turn/round/finish logic locally. If a view needs derived state, add a pure
-helper to `presentation.ts` — do not fork the machine.
+`useDebate` owns the debate lifecycle implementation and `useSpeech` owns playback, but routes do **not** instantiate either hook directly. `src/components/arena/DebateRuntimeProvider.tsx` owns those hook instances and exposes them through `useDebateRuntime()`.
 
-## `useDebate(settings: ArenaSettings)`
+Within one browser tab, route navigation therefore stays on the same runtime. Across simultaneous same-origin tabs/windows, the tab that starts a debate becomes the runtime owner. It alone performs generation, judging and TTS; other tabs mirror serializable debate/speech state over `BroadcastChannel` and forward runtime commands back to the owner. A mirror must never start a second side-effecting debate engine for the same session.
+
+## `useDebateRuntime()` — route-facing API
+
+```ts
+{
+  debate,          // same public shape as useDebate(settings)
+  speech,          // same public shape as useSpeech(settings, messages)
+  isRuntimeOwner,  // boolean
+}
+```
+
+Routes `/` and `/arena` consume this API. If a new route needs debate state, consume `useDebateRuntime()` rather than calling the engine hooks directly.
+
+## `useDebate(settings: ArenaSettings)` — engine implementation
 
 ```ts
 {
@@ -56,7 +67,7 @@ Behaviour a view must account for:
   `usingSimulation`.
 - `<think>` blocks are extracted into `DebateMessage.reasoning` by `splitReasoning`.
 
-## `useSpeech(settings, messages)`
+## `useSpeech(settings, messages)` — playback implementation
 
 ```ts
 {
@@ -72,6 +83,8 @@ The queue is strictly sequential and never overlaps sides. Failures are swallowe
 service must not stop the debate. Arabic uses `settings.tts.endpointAr` with no voice; English uses
 `endpointEn` plus the per-debater `settings[side].voice`.
 
+Only the runtime-owner tab may perform audio playback for a mirrored debate. Mirror tabs receive the serializable speech view (`speakingId`, `revealFraction`, `revealedIds`, `syncActive`) and render it without creating duplicate audio.
+
 ### The generation/voice skew
 
 This matters more than it looks. When TTS is on, the model generates and the judge scores far ahead
@@ -80,6 +93,19 @@ the audience is hearing. So when `syncActive` is true, speaker status and round 
 derived from the **voice queue**, not from `debate.status` / `turnIndex`. That derivation lives in
 `presentation.ts` (`effectiveStatus`, `effectiveRound`, `revealedText`) and must be used by every
 view that displays either.
+
+## Cross-tab command contract
+
+The owner/mirror layer forwards side-effecting controls to the runtime owner. At minimum this includes:
+
+- start
+- pause
+- resume
+- next turn
+- reset
+- manual judge
+
+Snapshots must contain only structured-clone-safe state. `Set` values such as `revealedIds` are serialized before broadcast and reconstructed by mirrors. Settings are persisted separately by `SettingsProvider` and synchronized across same-origin tabs/windows through the browser `storage` event.
 
 ## Types worth knowing
 
@@ -125,10 +151,10 @@ JudgeScorecard { alpha, beta, winner: Side | "tie", verdict, simulated, createdA
 ## SSR safety
 
 This is a TanStack Start SSR app. The following run **only** inside effects or event handlers,
-never during render or at module scope:
+never at module scope and never in a way that changes server/client markup during initial render:
 
-- `localStorage` — hence the `useState(DEFAULT_SETTINGS)` + `useEffect(() => setSettings(loadSettings()), [])`
-  pattern. Never initialise state directly from storage; it causes a hydration mismatch.
+- `localStorage` — hence the `useState(DEFAULT_SETTINGS)` + client effect pattern.
+- `BroadcastChannel`, `window` event listeners and tab ownership setup.
 - `new Audio()`, playback, and any `AudioContext`.
 - `URL.createObjectURL` and programmatic downloads.
 - `window`, `document`, `navigator`.
@@ -137,14 +163,16 @@ never during render or at module scope:
 
 - Every stream takes an `AbortSignal` and is aborted on reset, unmount, and supersession.
 - Every object URL is revoked after use.
+- Every `BroadcastChannel` is closed and browser event listener removed on provider cleanup.
 - Guard async completions with a request token so a stale response cannot overwrite newer state —
   this already protects judging and must protect anything similar you add.
-- `reset()` on the debate must be paired with `stop()` on speech.
+- `reset()` on the owner debate must be paired with `stop()` on owner speech.
+- If an owner tab exits, it releases ownership; mirrors must not continue generating from stale local state.
 
 ## Before changing a field
 
-```
-rg -n 'debate\.<field>|speech\.<field>' src/
+```bash
+rg -n 'debate\.<field>|speech\.<field>|useDebateRuntime|useDebate\(|useSpeech\(' src/
 ```
 
-Report the audit. A rename without one is how a control silently stops working.
+Report the audit. A rename without one is how a control silently stops working. Any direct `useDebate` or `useSpeech` call outside `DebateRuntimeProvider` is an architecture regression.
