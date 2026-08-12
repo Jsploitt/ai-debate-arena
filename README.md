@@ -1,14 +1,26 @@
-# Local LLM Debate Arena — Dell Saudi Arabia
+# Arena of Debate — Local LLM Debate Arena
 
-An event-ready, big-screen web application where **two locally hosted LLMs debate any topic you give them**, live, with an **AI judge** scoring both sides in real time.
+An event-ready, big-screen web application where **two locally hosted LLMs debate any topic you give them**, live, under the spotlight, with an **executive AI judge** scoring both sides in real time.
 
-Everything runs against models on your own workstation (Ollama by default) — **no prompt, no token, and no transcript ever leaves the machine**. Built as a showcase demo for Dell Technologies Saudi Arabia, themed in Dell deep navy/blue fused with Saudi flag green.
+Everything runs against models on your own workstation (Ollama by default) — **no prompt, no token, and no transcript ever leaves the machine**.
+
+## Routes
+
+| Route    | What it is                                                                                                                                                                                                       |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`      | **Arena of Debate** — the stage. Pick a motion from the marquee rails, appoint a CFO, CTO, CMO or CEO judge, and watch two illustrated agents debate it under the spotlight. Ends with a downloadable PDF brief. |
+| `/arena` | **Control Arena** — the instrumented view. Transport controls, live transcript with reasoning, weighted judge scorecard, telemetry, raw HTTP monitor, and the full configuration panel.                          |
+
+Both routes drive the **same** debate engine and share the same persisted settings; each links to the other.
+
+The visual design is imported from a pinned reference commit — see `docs/frontend-migration-notes.md` for the SHA, the feature mapping, and the documented deviations.
 
 ---
 
 ## What it does
 
 - **Two debaters, one topic.** Enter a resolution; Debater Alpha argues for, Debater Beta argues against, alternating turns for a configurable number of rounds.
+- **Executive judge personas.** CFO, CTO, CMO and CEO each weight the five criteria differently — the CFO wants evidence, the CTO wants logic, the CMO wants persuasion, the CEO wants clarity. Picking one rewrites the real judge weights, not just a label.
 - **Live token streaming.** Responses stream token-by-token from the local runtime, with visible "thinking → speaking" states per debater.
 - **Visible reasoning.** If a model emits `<think>…</think>`, the arena renders it as a collapsible terminal-style "Reasoning Path" block, separate from the argument itself.
 - **AI Judge with live scoring.** A third model scores both sides on **Logic, Evidence, Rebuttal, Clarity and Persuasion**, updating after every round — not just at the end — and gives a one-line reason for each individual score plus a final verdict.
@@ -16,7 +28,8 @@ Everything runs against models on your own workstation (Ollama by default) — *
 - **Telemetry for the audience.** Time-to-first-token, generation speed (tok/s), round token counts, last-turn latency and context-window usage.
 - **Developer console.** A live HTTP monitor showing every request and streamed chunk against the local endpoints — useful for proving on stage that inference is local.
 - **Never fails on stage.** If the local runtime is unreachable, the app transparently falls back to a scripted **simulation mode** with high-quality pre-written debates, so the demo always runs.
-- **Transcript export.** Download the full debate as Markdown, including the judge's score matrix, per-criterion reasons and verdict.
+- **Bilingual.** Debate in English or Arabic, with correct right-to-left presentation and a separate Arabic voice.
+- **Transcript export.** Download the full debate as Markdown, including the judge's score matrix, per-criterion reasons and verdict — or a formatted PDF brief in the judge persona's voice.
 
 ---
 
@@ -38,11 +51,21 @@ OLLAMA_ORIGINS="*" ollama serve
 ### 2. Run the app
 
 ```sh
-npm i
-npm run dev
+bun install
+bun run dev
 ```
 
-Open the printed URL, type a resolution (or pick a suggested topic), and press **Start Debate**.
+Open the printed URL, pick a motion from the rails, appoint a judge, and press **Begin the debate**.
+
+### No GPU? Run the mock stack
+
+A mock backend speaks the same protocols on the same ports, so every live code path works without a GPU or a model download:
+
+```sh
+bun .claude/skills/local-llm-fixtures/scripts/mock-ollama.ts
+```
+
+It binds 11434, 11435, 11436, 8100 and 8101 with permissive CORS, and supports failure injection via `?fail=`, `?judge=` and `?format=` query parameters. See `.claude/skills/local-llm-fixtures/SKILL.md`.
 
 If no local runtime answers, a **Simulation Mode** badge appears in the header and the arena runs the scripted debate instead.
 
@@ -50,22 +73,22 @@ If no local runtime answers, a **Simulation Mode** badge appears in the header a
 
 ## Using the arena
 
-| Control | What it does |
-| --- | --- |
-| **Start Debate** | Begins the debate on the entered resolution |
-| **Pause / Resume** | Halts after the current turn, resumes where it stopped |
-| **Next Turn** | Steps one turn at a time — useful for narrating a live demo |
-| **Reset Arena** | Clears the transcript, telemetry, logs and scorecard |
-| **Transcript** | Downloads the full debate + scorecard as Markdown |
-| **Auto-follow** | Toggles transcript auto-scroll (off by default, so the view never jumps mid-presentation) |
-| **Configuration** | Per-debater and judge settings panel |
-| **Developer Console** | Telemetry cards + live HTTP monitor |
+| Control               | What it does                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| **Start Debate**      | Begins the debate on the entered resolution                                               |
+| **Pause / Resume**    | Halts after the current turn, resumes where it stopped                                    |
+| **Next Turn**         | Steps one turn at a time — useful for narrating a live demo                               |
+| **Reset Arena**       | Clears the transcript, telemetry, logs and scorecard                                      |
+| **Transcript**        | Downloads the full debate + scorecard as Markdown                                         |
+| **Auto-follow**       | Toggles transcript auto-scroll (off by default, so the view never jumps mid-presentation) |
+| **Configuration**     | Per-debater and judge settings panel                                                      |
+| **Developer Console** | Telemetry cards + live HTTP monitor                                                       |
 
 ### Configuration panel
 
 Per debater (Alpha / Beta) and for the judge:
 
-- **Endpoint** — defaults to `http://localhost:11434/api/chat`; each side can point at a *different* workstation.
+- **Endpoint** — defaults to `http://localhost:11434/api/chat`; each side can point at a _different_ workstation.
 - **Model** — any tag installed on that endpoint.
 - **Temperature / top-p** — sampling controls.
 - **Tone preset** — Aggressive, Analytical, Humorous, Conservative, Socratic, Diplomatic, or Custom.
@@ -97,23 +120,29 @@ In simulation mode the judge falls back to a heuristic scorer driven by turn cou
 ```
 src/
   routes/
-    index.tsx                 # arena page: layout, wiring, Markdown transcript export
+    index.tsx                 # `/`  — the stage: rails, personas, characters, scoreboard, PDF
+    arena.tsx                 # `/arena` — instrumented arena + configuration sheet
+    __root.tsx                # shell, fonts, meta, SettingsProvider, Toaster
   components/arena/
-    ArenaHeader.tsx           # branding, connection pills, resolved model names
-    DebaterStage.tsx          # Alpha vs Beta stage, avatars, round counter
-    ConversationStream.tsx    # streamed messages, reasoning blocks, auto-follow
-    JudgePanel.tsx            # scorecard, per-criterion bars + reasons, skeletons
-    ControlDesk.tsx           # topic input, start/pause/next/reset/transcript
-    SettingsPanel.tsx         # debater + judge configuration
-    DevConsole.tsx            # telemetry cards + live HTTP monitor
-  lib/debate/
-    types.ts                  # shared types (messages, telemetry, scorecard, chunks)
-    presets.ts                # tone presets, thinking levels, defaults, persistence
-    ollamaClient.ts           # streaming fetch client, health check, model resolution
-    judge.ts                  # judge prompt, live judging, heuristic fallback
-    simulation.ts             # scripted offline debates
-    useDebate.ts              # state machine: turns, streaming, health, judging
-  styles.css                  # Dell + Saudi theme tokens, gradients, arena utilities
+    stage.tsx                 # TopicRail, CloudBubble, LeanBar, AgentStage, ScoreBanner
+    panels.tsx                # Transcript, Scorecard, Telemetry, HttpMonitor, StatusRail
+    ConfigPanel.tsx           # the whole configuration surface
+    SettingsProvider.tsx      # persisted ArenaSettings shared by both routes
+  lib/
+    personas.ts               # executive judge personas → judge weight presets
+    pdf.ts                    # jsPDF verdict brief, built from the real scorecard
+    transcript.ts             # pure Markdown builder + isolated download
+    debate/
+      types.ts                # shared types (messages, telemetry, scorecard, chunks)
+      presets.ts              # tone presets, thinking levels, defaults, persistence
+      ollamaClient.ts         # streaming fetch client, health check, model resolution
+      judge.ts                # judge prompt, live judging, heuristic fallback
+      simulation.ts           # scripted offline debates
+      tts.ts                  # speech synthesis requests
+      useDebate.ts            # state machine: turns, streaming, health, judging
+      useSpeech.ts            # sequential TTS queue + voice-synced reveal
+      presentation.ts         # pure view-model helpers (no React, no DOM)
+  styles.css                  # design tokens, arena utilities, reduced-motion rules
 ```
 
 ### Streaming client
@@ -126,7 +155,13 @@ src/
 
 ### Theming
 
-All colours are semantic tokens in `src/styles.css`: Dell deep navy canvas, Dell blue (`#0076CE`) as primary, Saudi flag green as accent, with flag-inspired corona gradients, a geometric arabesque lattice background, and `arena-*` utilities for the panels, pulse rings and glow effects. No hard-coded colour classes in components.
+All colours are semantic **oklch** tokens in `src/styles.css` (Tailwind v4 CSS-first — there is no `tailwind.config.js`): a deep desaturated navy canvas under a fixed cyan-blue radial glow, one accent hue family around 245°, with `--pro` and `--con` distinguished by lightness rather than opposing hues. Space Grotesk for display, DM Sans for body. Utilities `arena-panel`, `gold-text`, `topic-marquee`, `spotlight-beam`, `cloud-bubble` and `bubble-pop` carry the stage look; `prefers-reduced-motion` and `hover: none` stand the animations down.
+
+A new colour is a three-step change — define it on `:root`, register it in `@theme inline` as `--color-<name>`, then use it. See `.claude/skills/design-tokens/SKILL.md`.
+
+### Agentic workflows
+
+The repository ships a hub-and-spoke agent layer under `.claude/` — a routing hub, six role spokes, six skills encoding project knowledge, and seven slash commands (`/verify`, `/fidelity-check`, `/engine-audit`, `/config-audit`, `/a11y-pass`, `/backend-up`, `/migrate-phase`). See `AGENTS.md`.
 
 ---
 

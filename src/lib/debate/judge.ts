@@ -69,7 +69,8 @@ export function rubricNote(judge: JudgeConfig): string {
     `- Criterion importance weights: ${JUDGE_CRITERIA.map((c) => `${c} x${weights[c]}`).join(", ")}. Higher weight means that criterion matters more to the final result.`,
   ];
   const ignored = JUDGE_CRITERIA.filter((c) => weights[c] === 0);
-  if (ignored.length) lines.push(`- Ignore entirely (weight 0): ${ignored.join(", ")}. Still return 0 for them.`);
+  if (ignored.length)
+    lines.push(`- Ignore entirely (weight 0): ${ignored.join(", ")}. Still return 0 for them.`);
   lines.push(
     `- Declare a tie when the two weighted totals are within ${judge.tieThreshold ?? DEFAULT_TIE_THRESHOLD} points.`,
   );
@@ -88,7 +89,6 @@ export const JUDGE_SYSTEM_PROMPT = [
   '"beta":{"Logic":{"score":0,"reason":"why"},"Evidence":{"score":0,"reason":"why"},"Rebuttal":{"score":0,"reason":"why"},"Clarity":{"score":0,"reason":"why"},"Persuasion":{"score":0,"reason":"why"},"summary":"one sentence"},',
   '"winner":"alpha|beta|tie","verdict":"two sentences explaining the decision"}',
 ].join("\n");
-
 
 function toDebaterConfig(judge: JudgeConfig): DebaterConfig {
   return {
@@ -119,7 +119,7 @@ export function buildJudgeMessages(
     : "The debate is complete. Score it now, with a short reason per criterion. JSON only.";
   const languageNote =
     language === "ar"
-      ? "\n\nمهم: النقاش أدناه باللغة العربية. اقرأه وقيّمه بالعربية، واكتب كل حقول \"reason\" و\"summary\" و\"verdict\" داخل JSON باللغة العربية الفصحى فقط. حافظ على مفاتيح JSON كما هي بالإنجليزية.\n"
+      ? '\n\nمهم: النقاش أدناه باللغة العربية. اقرأه وقيّمه بالعربية، واكتب كل حقول "reason" و"summary" و"verdict" داخل JSON باللغة العربية الفصحى فقط. حافظ على مفاتيح JSON كما هي بالإنجليزية.\n'
       : "";
   return [
     {
@@ -215,7 +215,6 @@ export function parseJudgeResponse(
     }
   }
 
-
   const side = (key: Side) => {
     const block = (data[key] ?? {}) as Record<string, unknown>;
     const scores = {} as Record<JudgeCriterion, number>;
@@ -268,7 +267,6 @@ export function parseJudgeResponse(
   };
 }
 
-
 /** Deterministic-but-plausible scoring used when no live judge model is reachable. */
 export function simulateJudge(
   topic: string,
@@ -296,7 +294,15 @@ export function simulateJudge(
       (text.match(/(لكن|غير أن|أُسلّم|أقر|موقفك|حجتك|تفنيد)/g)?.length ?? 0);
     const questions = (text.match(/\?/g) ?? []).length;
     const avgSentence = words.length / Math.max(1, (text.match(/[.!?]/g) ?? []).length);
-    return { words: words.length, unique, numbers, rebuttals, questions, avgSentence, turns: own.length };
+    return {
+      words: words.length,
+      unique,
+      numbers,
+      rebuttals,
+      questions,
+      avgSentence,
+      turns: own.length,
+    };
   };
 
   const build = (s: Side) => {
@@ -321,12 +327,12 @@ export function simulateJudge(
           Persuasion: `${t.words} كلمة من الحجاج المتصل؛ ${scores.Persuasion >= 8 * k ? `${name} أنهى بزخم بلاغي حقيقي` : `${name} أوصل الفكرة لكن دون تصعيد كافٍ`}.`,
         }
       : {
-      Logic: `${t.unique} distinct terms across ${t.turns} turn(s) — ${scores.Logic >= 8 ? "argument chains stayed tight and non-repetitive" : "some claims were restated rather than advanced"}.`,
-      Evidence: `${t.numbers} numeric/quantified references — ${scores.Evidence >= 8 ? "claims were consistently backed by figures" : "more concrete data would strengthen the case"}.`,
-      Rebuttal: `${t.rebuttals} direct counter-moves and ${t.questions} challenge question(s) aimed at the opponent's framing.`,
-      Clarity: `Average sentence length ${t.avgSentence.toFixed(0)} words — ${scores.Clarity >= 8 ? "crisp and easy to follow on stage" : "denser than ideal for a live audience"}.`,
-      Persuasion: `${t.words} words of sustained argument; ${scores.Persuasion >= 8 ? `${name} closed with real rhetorical momentum` : `${name} landed the point but with limited escalation`}.`,
-    };
+          Logic: `${t.unique} distinct terms across ${t.turns} turn(s) — ${scores.Logic >= 8 ? "argument chains stayed tight and non-repetitive" : "some claims were restated rather than advanced"}.`,
+          Evidence: `${t.numbers} numeric/quantified references — ${scores.Evidence >= 8 ? "claims were consistently backed by figures" : "more concrete data would strengthen the case"}.`,
+          Rebuttal: `${t.rebuttals} direct counter-moves and ${t.questions} challenge question(s) aimed at the opponent's framing.`,
+          Clarity: `Average sentence length ${t.avgSentence.toFixed(0)} words — ${scores.Clarity >= 8 ? "crisp and easy to follow on stage" : "denser than ideal for a live audience"}.`,
+          Persuasion: `${t.words} words of sustained argument; ${scores.Persuasion >= 8 ? `${name} closed with real rhetorical momentum` : `${name} landed the point but with limited escalation`}.`,
+        };
     return {
       scores,
       reasons,
@@ -360,12 +366,12 @@ export function simulateJudge(
         ? `أنهى النموذجان النقاش بفارق لا يُذكر: ${names.alpha} امتلك البنية و${names.beta} امتلك الضغط.`
         : `يذهب القرار إلى ${lead}، الذي حوّل عدداً أكبر من دعاواه إلى تفنيدات مباشرة مدعومة بالأدلة بدل إعادة عرض موقفه الافتتاحي.`
     : interim
-    ? winner === "tie"
-      ? `Running score: dead level so far — ${names.alpha} owns structure, ${names.beta} owns pressure.`
-      : `Running score: ${lead} is ahead right now on sharper, better-evidenced rebuttals.`
-    : winner === "tie"
-      ? `The two models finished within a rounding error of each other: ${names.alpha} owned structure, ${names.beta} owned pressure.`
-      : `The decision goes to ${lead}, who converted more of their claims into direct, evidenced rebuttals rather than restating the opening position.`;
+      ? winner === "tie"
+        ? `Running score: dead level so far — ${names.alpha} owns structure, ${names.beta} owns pressure.`
+        : `Running score: ${lead} is ahead right now on sharper, better-evidenced rebuttals.`
+      : winner === "tie"
+        ? `The two models finished within a rounding error of each other: ${names.alpha} owned structure, ${names.beta} owned pressure.`
+        : `The decision goes to ${lead}, who converted more of their claims into direct, evidenced rebuttals rather than restating the opening position.`;
 
   return {
     alpha,
@@ -411,4 +417,3 @@ export async function runLiveJudge(
   }
   return { scorecard: parseJudgeResponse(raw, judge, interim, messages.length), raw };
 }
-

@@ -1,0 +1,19 @@
+{
+  'alpha': {
+    'Logic': { 'score': 8, 'reason': 'Tight chain of reasoning.', },
+    'Evidence': { 'score': 7, 'reason': 'Figures given without sources.', },
+    'Rebuttal': { 'score': 9, 'reason': 'Answered every objection raised.', },
+    'Clarity': { 'score': 8, 'reason': 'Well organised.', },
+    'summary': 'Strong showing, but the Persuasion criterion is missing entirely.',
+  },
+  'beta': {
+    'Logic': { 'score': 6, 'reason': 'Two unstated premises.', },
+    'Evidence': { 'score': 'high', 'reason': 'Score is a string, not a number.', },
+    'Rebuttal': { 'score': 7, 'reason': 'Partial answer to the cost point.', },
+    'Clarity': { 'score': 15, 'reason': 'Out of range above the scale.', },
+    'Persuasion': { 'score': -3, 'reason': 'Out of range below zero.', },
+    'summary': 'Deliberately broken in four different ways.',
+  },
+  'winner': 'ALPHA',
+  'verdict': 'Trailing commas, single quotes, a missing criterion, a non-numeric score, two out-of-range scores, and a winner in the wrong case.',
+}

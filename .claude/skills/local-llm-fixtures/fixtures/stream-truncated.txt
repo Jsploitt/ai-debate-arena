@@ -1,0 +1,4 @@
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":"The "},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":"argument "},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":"collapses "},"done":false}
+{"model":"nemotron3-nano-30b","message":{"role":"assistant","content":"when "},"done":fal

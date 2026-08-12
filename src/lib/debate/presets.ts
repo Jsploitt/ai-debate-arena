@@ -1,12 +1,40 @@
-import { DEFAULT_JUDGE_SCALE, DEFAULT_JUDGE_WEIGHTS, DEFAULT_TIE_THRESHOLD, JUDGE_SYSTEM_PROMPT } from "./judge";
-import type { ArenaSettings, DebateLanguage, DebaterConfig, JudgeConfig, TtsSettings } from "./types";
+import {
+  DEFAULT_JUDGE_SCALE,
+  DEFAULT_JUDGE_WEIGHTS,
+  DEFAULT_TIE_THRESHOLD,
+  JUDGE_SYSTEM_PROMPT,
+} from "./judge";
+import type {
+  ArenaSettings,
+  DebateLanguage,
+  DebaterConfig,
+  JudgeConfig,
+  TtsSettings,
+} from "./types";
 
 /** Kokoro (English) voice ids, grouped by gender for the Settings panel. */
 export const KOKORO_VOICES = {
-  Male: ["am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael", "am_onyx", "am_puck"],
-  Female: ["af_alloy", "af_bella", "af_heart", "af_jessica", "af_kore", "af_nicole", "af_nova", "af_sarah"],
+  Male: [
+    "am_adam",
+    "am_echo",
+    "am_eric",
+    "am_fenrir",
+    "am_liam",
+    "am_michael",
+    "am_onyx",
+    "am_puck",
+  ],
+  Female: [
+    "af_alloy",
+    "af_bella",
+    "af_heart",
+    "af_jessica",
+    "af_kore",
+    "af_nicole",
+    "af_nova",
+    "af_sarah",
+  ],
 };
-
 
 export const TONE_PRESETS: Record<string, string> = {
   Custom: "",
@@ -83,7 +111,6 @@ export const DEFAULT_SETTINGS: ArenaSettings = {
   language: "en",
   tts,
 };
-
 
 /** Language directive appended to every debater system prompt. */
 export const LANGUAGE_INSTRUCTION: Record<DebateLanguage, string> = {

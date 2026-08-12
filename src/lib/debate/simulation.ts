@@ -72,7 +72,6 @@ const GENERIC_BETA = [
   "<think>Close by offering the pragmatic alternative.</think>My position is not stagnation, it is sequencing. Adopt where the payoff is provable, hold where it is not, and stop treating a procurement decision as an identity. On {topic}, the negative case is simply the disciplined one.",
 ];
 
-
 const GENERIC_ALPHA_AR = [
   "<think>أبدأ بتحديد المصطلحات حتى لا يتهرب الخصم من صلب الطرح.</think>لنحدد الطرح قبل أن نتجادل في الهامش: {topic}. موقفي مؤيد، وترتكز حجتي على ثلاثة معايير قابلة للقياس: التكلفة، والموثوقية، وزمن تحقيق القيمة. وكلها قابلة للاختبار، وهذا أكثر مما تقدمه البلاغة عادة.",
   "<think>أعزز الموقف بالأدلة التشغيلية وأستبق الاعتراض المتوقع.</think>أقوى الأدلة تشغيلية بامتياز. المؤسسات التي التزمت مبكراً بهذا الاتجاه تسجل معدلات أعطال أقل ودورات نشر أقصر. أما الاعتراض المعتاد بأن ذلك ينجح في النطاقات الصغيرة فقط، فهو يخلط بين منحنى تبنٍّ مبكر وبين سقف نهائي.",

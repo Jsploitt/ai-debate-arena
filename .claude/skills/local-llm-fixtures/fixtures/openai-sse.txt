@@ -1,0 +1,7 @@
+data: {"id":"c-1","object":"chat.completion.chunk","model":"gemma-4-26b","choices":[{"index":0,"delta":{"role":"assistant","content":"That "},"finish_reason":null}]}
+data: {"id":"c-1","object":"chat.completion.chunk","model":"gemma-4-26b","choices":[{"index":0,"delta":{"content":"objection "},"finish_reason":null}]}
+data: {"id":"c-1","object":"chat.completion.chunk","model":"gemma-4-26b","choices":[{"index":0,"delta":{"content":"proves "},"finish_reason":null}]}
+data: {"id":"c-1","object":"chat.completion.chunk","model":"gemma-4-26b","choices":[{"index":0,"delta":{"content":"too "},"finish_reason":null}]}
+data: {"id":"c-1","object":"chat.completion.chunk","model":"gemma-4-26b","choices":[{"index":0,"delta":{"content":"much."},"finish_reason":null}]}
+data: {"id":"c-1","object":"chat.completion.chunk","model":"gemma-4-26b","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+data: [DONE]

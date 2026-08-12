@@ -15,8 +15,12 @@ export interface DebaterConfig {
   systemPrompt: string;
   thinkingLevel: number;
   tonePreset: string;
-  /** Kokoro voice id used for English TTS (ignored in Arabic mode). */
-  voice: string;
+  /**
+   * Kokoro voice id used for English TTS (ignored in Arabic mode).
+   * Optional because the judge is never read aloud — `judge.ts` reuses this
+   * shape to reach the same transport without carrying a voice.
+   */
+  voice?: string;
 }
 
 export interface JudgeConfig {
@@ -65,7 +69,6 @@ export interface JudgeScorecard {
   streaming?: boolean;
 }
 
-
 /** Language the debaters speak in. The UI chrome stays in English. */
 export type DebateLanguage = "en" | "ar";
 
@@ -89,7 +92,6 @@ export interface ArenaSettings {
   language: DebateLanguage;
   tts: TtsSettings;
 }
-
 
 export interface Telemetry {
   ttftMs: number;
