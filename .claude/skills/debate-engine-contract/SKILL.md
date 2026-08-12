@@ -10,8 +10,10 @@ API: additive changes are cheap, renames and removals require a caller audit.
 
 ## The one-state-machine rule
 
-`useDebate` owns the debate lifecycle. There is exactly one instance per route, and no component
-may reimplement start/turn/round/finish logic locally. If a view needs derived state, add a pure
+`useDebate` owns the debate lifecycle. There is exactly one instance **per app**, created by
+`DebateProvider` (`src/components/arena/DebateProvider.tsx`) above the router outlet — routes
+consume it via `useDebateSession()` and must never call `useDebate`/`useSpeech` themselves. No
+component may reimplement start/turn/round/finish logic locally. If a view needs derived state, add a pure
 helper to `presentation.ts` — do not fork the machine.
 
 ## `useDebate(settings: ArenaSettings)`

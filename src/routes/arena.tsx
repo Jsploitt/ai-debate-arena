@@ -40,6 +40,7 @@ import {
   effectiveRound,
   leanPercent,
   runtimeLabel,
+  contentDir,
   runtimeState,
   speakingSide,
 } from "@/lib/debate/presentation";
@@ -79,6 +80,7 @@ function ControlArena() {
 
   const names = { alpha: settings.alpha.name, beta: settings.beta.name };
   const isArabic = settings.language === "ar";
+  const contentLocale = contentDir(settings.language);
   const samples = isArabic ? SAMPLE_TOPICS_AR : SAMPLE_TOPICS;
 
   const persona = PERSONAS[personaForWeights(settings.judge.weights) ?? DEFAULT_PERSONA_ID];
@@ -219,7 +221,7 @@ function ControlArena() {
             onKeyDown={(e) => {
               if (e.key === "Enter") startDebate();
             }}
-            dir={isArabic ? "rtl" : "ltr"}
+            {...contentLocale}
             placeholder={isArabic ? "اكتب موضوع المناظرة…" : "Enter a motion to debate…"}
             disabled={started}
             className="min-w-[240px] flex-1"
@@ -296,7 +298,7 @@ function ControlArena() {
                   key={sample}
                   type="button"
                   onClick={() => setInput(sample)}
-                  dir={isArabic ? "rtl" : "ltr"}
+                  {...contentLocale}
                   className="rounded-md border border-border bg-background/60 px-2.5 py-1 text-[11px] text-foreground/80 transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 >
                   {sample}

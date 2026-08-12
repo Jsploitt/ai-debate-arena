@@ -15,6 +15,7 @@ import { useDebateSession } from "@/components/arena/DebateProvider";
 import {
   agentMood,
   cloudText,
+  contentDir,
   effectiveRound,
   leanPercent,
   runtimeLabel,
@@ -102,7 +103,7 @@ function ArenaHome() {
   const topic = motion || null;
 
   const isArabic = settings.language === "ar";
-  const dir = isArabic ? "rtl" : "ltr";
+  const dir = contentDir(settings.language);
   const names = useMemo(
     () => ({ alpha: settings.alpha.name, beta: settings.beta.name }),
     [settings.alpha.name, settings.beta.name],
@@ -185,7 +186,7 @@ function ArenaHome() {
         {topic && (
           <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
             <span
-              dir={dir}
+              {...dir}
               className="font-display rounded-lg border border-primary/50 bg-primary/10 px-6 py-2 text-xl font-semibold text-primary sm:text-2xl"
             >
               {topic}
@@ -232,10 +233,10 @@ function ArenaHome() {
           </div>
 
           {proCloud && (
-            <CloudBubble side="alpha" active={speaking === "alpha"} text={proCloud} dir={dir} />
+            <CloudBubble side="alpha" active={speaking === "alpha"} text={proCloud} locale={dir} />
           )}
           {conCloud && (
-            <CloudBubble side="beta" active={speaking === "beta"} text={conCloud} dir={dir} />
+            <CloudBubble side="beta" active={speaking === "beta"} text={conCloud} locale={dir} />
           )}
 
           {!proCloud && !conCloud && started && (
@@ -259,25 +260,43 @@ function ArenaHome() {
             <TopicRail topics={rails[0]} onPick={setMotion} />
             <TopicRail topics={rails[1]} onPick={setMotion} reverse />
           </div>
-        ) : hasFinalVerdict ? (
+        ) : finished ? (
+          // A finished debate always gets a closing panel. Keying this off the
+          // scorecard alone left the arena showing a dead, disabled "Appoint a
+          // judge" grid forever whenever the judge was turned off — the debate
+          // was over and the page never said so.
           <div className="arena-panel mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-xl px-5 py-3">
             <div>
               <div className="font-display text-[11px] tracking-[0.25em] text-primary uppercase">
                 {persona.title} · {persona.doc}
               </div>
-              <p dir={dir} className="mt-1 text-sm text-foreground/90">
-                Winner:{" "}
-                <span className="text-primary">{winnerLabel(debate.scorecard!.winner, names)}</span>{" "}
-                — {debate.scorecard!.verdict}
-              </p>
+              {hasFinalVerdict ? (
+                <p {...dir} className="mt-1 text-sm text-foreground/90">
+                  Winner:{" "}
+                  <span className="text-primary">
+                    {winnerLabel(debate.scorecard!.winner, names)}
+                  </span>{" "}
+                  — {debate.scorecard!.verdict}
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-foreground/90">
+                  {debate.judging
+                    ? "The debate is complete. The judge is scoring it now…"
+                    : settings.judge.enabled
+                      ? "The debate is complete, but the judge returned no verdict."
+                      : "The debate is complete. The AI judge is switched off, so no verdict was scored."}
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button asChild variant="outline" className="font-display">
                 <Link to="/arena">Full scorecard</Link>
               </Button>
-              <Button className="font-display" onClick={downloadBrief}>
-                <Download aria-hidden="true" /> Download PDF
-              </Button>
+              {hasFinalVerdict && (
+                <Button className="font-display" onClick={downloadBrief}>
+                  <Download aria-hidden="true" /> Download PDF
+                </Button>
+              )}
             </div>
           </div>
         ) : (

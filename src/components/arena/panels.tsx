@@ -9,7 +9,7 @@ import { ChevronDown, Gavel, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { JUDGE_CRITERIA } from "@/lib/debate/judge";
-import { revealedText } from "@/lib/debate/presentation";
+import { contentDir, revealedText } from "@/lib/debate/presentation";
 import type {
   ConnectionState,
   DebateLanguage,
@@ -66,7 +66,13 @@ export function Panel({
 
 /* ------------------------------- Transcript ------------------------------- */
 
-function ReasoningBlock({ reasoning, dir }: { reasoning: string; dir: "ltr" | "rtl" }) {
+function ReasoningBlock({
+  reasoning,
+  locale,
+}: {
+  reasoning: string;
+  locale: { dir: "rtl" | "ltr"; lang: DebateLanguage };
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-2">
@@ -84,7 +90,7 @@ function ReasoningBlock({ reasoning, dir }: { reasoning: string; dir: "ltr" | "r
       </button>
       {open && (
         <p
-          dir={dir}
+          {...locale}
           className="mt-1.5 border-l-2 border-border pl-3 text-[12px] leading-relaxed text-muted-foreground italic"
         >
           {reasoning}
@@ -117,7 +123,7 @@ export function TranscriptPanel({
   autoFollow: boolean;
   onAutoFollowChange: (value: boolean) => void;
 }) {
-  const dir = language === "ar" ? "rtl" : "ltr";
+  const dir = contentDir(language);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const visible = syncActive
@@ -148,7 +154,7 @@ export function TranscriptPanel({
       }
     >
       {topic && (
-        <p dir={dir} className="mb-3 shrink-0 text-sm text-foreground/80">
+        <p {...dir} className="mb-3 shrink-0 text-sm text-foreground/80">
           <Kicker className="me-2">Motion</Kicker>
           {topic}
         </p>
@@ -192,14 +198,14 @@ export function TranscriptPanel({
                 )}
               </header>
 
-              <p dir={dir} className="text-sm leading-relaxed whitespace-pre-wrap">
+              <p {...dir} className="text-sm leading-relaxed whitespace-pre-wrap">
                 {content}
                 {(message.streaming || revealing) && (
                   <span className="ms-0.5 inline-block h-4 w-1.5 animate-pulse bg-primary align-middle" />
                 )}
               </p>
 
-              {message.reasoning && <ReasoningBlock reasoning={message.reasoning} dir={dir} />}
+              {message.reasoning && <ReasoningBlock reasoning={message.reasoning} locale={dir} />}
             </article>
           );
         })}
@@ -227,7 +233,7 @@ function ScoreRow({
   betaReason?: string;
   scale: number;
   weight: number;
-  dir: "ltr" | "rtl";
+  dir: { dir: "rtl" | "ltr"; lang: DebateLanguage };
 }) {
   return (
     <div className="space-y-1.5">
@@ -250,7 +256,7 @@ function ScoreRow({
         </div>
       </div>
       {(alphaReason || betaReason) && (
-        <dl dir={dir} className="space-y-0.5 text-[11px] leading-snug text-muted-foreground">
+        <dl {...dir} className="space-y-0.5 text-[11px] leading-snug text-muted-foreground">
           {alphaReason && (
             <div>
               <dt className="sr-only">Alpha reason</dt>
@@ -286,7 +292,7 @@ export function ScorecardPanel({
   judgeEnabled: boolean;
   onJudge: () => void;
 }) {
-  const dir = language === "ar" ? "rtl" : "ltr";
+  const dir = contentDir(language);
 
   return (
     <Panel
@@ -362,7 +368,7 @@ export function ScorecardPanel({
               ))}
             </div>
 
-            <p dir={dir} className="text-sm leading-relaxed text-foreground/90">
+            <p {...dir} className="text-sm leading-relaxed text-foreground/90">
               {scorecard.verdict}
             </p>
           </div>

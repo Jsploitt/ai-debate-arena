@@ -11,7 +11,11 @@ Everything runs against models on your own workstation (Ollama by default) — *
 | `/`      | **Arena of Debate** — the stage. Pick a motion from the marquee rails, appoint a CFO, CTO, CMO or CEO judge, and watch two illustrated agents debate it under the spotlight. Ends with a downloadable PDF brief. |
 | `/arena` | **Control Arena** — the instrumented view. Transport controls, live transcript with reasoning, weighted judge scorecard, telemetry, raw HTTP monitor, and the full configuration panel.                          |
 
-Both routes drive the **same** debate engine and share the same persisted settings; each links to the other.
+Both routes are views over **one** debate session. A debate started on either page is the same
+debate on the other — including in a second browser tab, where one tab drives the models and the
+rest mirror it over a `BroadcastChannel` (see `src/lib/debate/sessionChannel.ts`). Settings are
+shared the same way. Separate browser profiles and incognito windows are separate clients and do
+not sync.
 
 The visual design is imported from a pinned reference commit — see `docs/frontend-migration-notes.md` for the SHA, the feature mapping, and the documented deviations.
 

@@ -9,8 +9,27 @@
  * Nothing here may import React, touch the DOM, or read browser globals.
  */
 
-import type { DebateMessage, Side, SpeakerStatus } from "./types";
+import type { DebateLanguage, DebateMessage, Side, SpeakerStatus } from "./types";
 import type { Phase } from "./useDebate";
+
+/**
+ * The pair of attributes every Arabic-capable *content* container needs.
+ *
+ * `dir` alone was being set, which fixes rendering but leaves the element
+ * claiming to be English — so a screen reader reads Arabic debate text with an
+ * English voice and English pronunciation rules. `lang` is what selects the
+ * speech synthesiser; the two always travel together.
+ *
+ * Content only. Per the RTL contract the app shell, navigation, transport and
+ * configuration stay LTR English on purpose — PRO is anchored left and CON
+ * right by design, and mirroring the document would break that.
+ */
+export function contentDir(language: DebateLanguage): {
+  dir: "rtl" | "ltr";
+  lang: DebateLanguage;
+} {
+  return { dir: language === "ar" ? "rtl" : "ltr", lang: language };
+}
 
 /** The slice of `useSpeech`'s return value these helpers depend on. */
 export interface SpeechView {

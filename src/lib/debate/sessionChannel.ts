@@ -169,6 +169,19 @@ function claimable(lease: Lease | null, id: string) {
 }
 
 /**
+ * Whether some tab is currently holding a live lease.
+ *
+ * Callers use this before handing a command to the channel: if the driver has
+ * gone and no successor has been elected yet, there is nobody to receive it and
+ * posting would silently drop the user's click.
+ */
+export function leaseIsFresh(): boolean {
+  if (typeof window === "undefined") return false;
+  const lease = readLease();
+  return !!lease && Date.now() - lease.ts <= LEASE_TTL_MS;
+}
+
+/**
  * Runs one election round. Writes the lease if it looks claimable, then reads
  * it back after a settle delay so simultaneous claimants converge on one winner.
  */

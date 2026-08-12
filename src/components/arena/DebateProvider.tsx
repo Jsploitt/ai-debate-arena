@@ -18,6 +18,7 @@ import {
   SNAPSHOT_LOG_LIMIT,
   SNAPSHOT_THROTTLE_MS,
   contestLease,
+  leaseIsFresh,
   newClientId,
   openSessionChannel,
   releaseLease,
@@ -216,6 +217,12 @@ export function DebateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Commands with nowhere to go yet are held rather than dropped. Two cases:
+  // the ~150ms before the first election settles, and the gap after the driving
+  // tab dies but before a successor has been elected. In both, posting to the
+  // channel would throw the user's click away silently.
+  const pendingRef = useRef<SessionCommand[]>([]);
+
   const dispatch = useCallback(
     (command: SessionCommand, leader: boolean) => {
       const id = clientIdRef.current;
@@ -224,15 +231,17 @@ export function DebateProvider({ children }: { children: ReactNode }) {
         runCommand(command);
         return;
       }
+      if (!leaseIsFresh()) {
+        // The driver is gone. Hold this until we know who takes over — it is
+        // replayed after the successor adopts the session.
+        pendingRef.current.push(command);
+        return;
+      }
       channelRef.current.post({ type: "command", from: id, command });
     },
     [runCommand],
   );
 
-  // A click can land in the ~150ms before the lease settles. Holding those
-  // commands until the role is known keeps them from being applied to the wrong
-  // tab — or posted to a channel where no leader is listening yet.
-  const pendingRef = useRef<SessionCommand[]>([]);
   const dispatchRef = useRef(dispatch);
   dispatchRef.current = dispatch;
 
@@ -246,13 +255,6 @@ export function DebateProvider({ children }: { children: ReactNode }) {
     },
     [dispatch],
   );
-
-  useEffect(() => {
-    if (role === "electing" || pendingRef.current.length === 0) return;
-    const queued = pendingRef.current;
-    pendingRef.current = [];
-    for (const command of queued) dispatchRef.current(command, role === "leader");
-  }, [role]);
 
   /* -------------------------- channel + election -------------------------- */
 
@@ -298,7 +300,17 @@ export function DebateProvider({ children }: { children: ReactNode }) {
       const won = await contestLease(id);
       if (cancelled) return;
       setRole(won ? "leader" : "follower");
-      if (won) publishRef.current();
+      if (won) {
+        publishRef.current();
+        return;
+      }
+      // Another tab took over. Anything held while the seat was empty can go
+      // to it now, rather than waiting for a role change that will never come.
+      if (pendingRef.current.length > 0 && leaseIsFresh()) {
+        const queued = pendingRef.current;
+        pendingRef.current = [];
+        for (const command of queued) dispatchRef.current(command, false);
+      }
     };
     void elect();
     const timer = setInterval(() => void elect(), LEASE_RENEW_MS);
@@ -338,6 +350,20 @@ export function DebateProvider({ children }: { children: ReactNode }) {
     }
     wasLeaderRef.current = isLeader;
   }, [isLeader]);
+
+  /**
+   * Replay whatever was held while the role was unknown.
+   *
+   * Declared *after* the promotion effect on purpose: a queued Reset must land
+   * on the adopted session, not be applied first and then overwritten by the
+   * snapshot this tab is taking ownership of.
+   */
+  useEffect(() => {
+    if (role === "electing" || pendingRef.current.length === 0) return;
+    const queued = pendingRef.current;
+    pendingRef.current = [];
+    for (const command of queued) dispatchRef.current(command, role === "leader");
+  }, [role]);
 
   /**
    * Leader: mirror state outward on every render, rate-limited.

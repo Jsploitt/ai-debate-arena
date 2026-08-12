@@ -63,12 +63,13 @@ export function CloudBubble({
   side,
   active,
   text,
-  dir = "ltr",
+  locale = { dir: "ltr", lang: "en" },
 }: {
   side: "alpha" | "beta";
   active: boolean;
   text: string;
-  dir?: "ltr" | "rtl";
+  /** `dir` + `lang` for the debate content, from `contentDir(language)`. */
+  locale?: { dir: "rtl" | "ltr"; lang: "en" | "ar" };
 }) {
   return (
     <div
@@ -76,7 +77,7 @@ export function CloudBubble({
         side === "alpha" ? "cloud-tail-left self-start" : "cloud-tail-right self-end"
       } ${active ? "scale-100 opacity-100" : "scale-95 opacity-45"}`}
     >
-      <p dir={dir} className="text-sm leading-relaxed font-medium">
+      <p {...locale} className="text-sm leading-relaxed font-medium">
         {text}
       </p>
     </div>
