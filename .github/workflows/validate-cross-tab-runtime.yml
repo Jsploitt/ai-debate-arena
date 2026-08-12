@@ -1,0 +1,82 @@
+name: Validate cross-tab runtime
+
+on:
+  push:
+    branches:
+      - agent/fix-runtime-sync-handoff
+
+jobs:
+  cross-tab-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run build
+      - name: Start production server
+        run: |
+          bun run .output/server/index.mjs > /tmp/arena-server.log 2>&1 &
+          echo $! > /tmp/arena-server.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/arena-server.log
+          exit 1
+      - name: Exercise two simultaneous routes
+        run: |
+          cat > /tmp/cross-tab-smoke.mjs <<'EOF'
+          import { chromium } from 'playwright';
+
+          const browser = await chromium.launch({ headless: true });
+          const context = await browser.newContext();
+          await context.addInitScript(() => {
+            localStorage.setItem(
+              'debate-arena-settings-v1',
+              JSON.stringify({ mode: 'simulation', rounds: 2, tts: { enabled: false } }),
+            );
+          });
+
+          const stage = await context.newPage();
+          const arena = await context.newPage();
+          await stage.goto('http://127.0.0.1:3000/');
+          await arena.goto('http://127.0.0.1:3000/arena');
+
+          const topic = 'Replace sales with AI agents';
+          await stage.getByRole('button', { name: topic }).first().click();
+          await stage.getByRole('button', { name: 'Begin the debate' }).click();
+
+          const arenaTopic = arena.locator('#topic');
+          await arenaTopic.waitFor({ state: 'visible' });
+          await arena.waitForFunction(
+            (expected) => document.querySelector('#topic')?.value === expected,
+            topic,
+          );
+
+          const pause = arena.getByRole('button', { name: 'Pause' });
+          await pause.waitFor({ state: 'visible' });
+          await pause.click();
+          const resume = arena.getByRole('button', { name: 'Resume' });
+          await resume.waitFor({ state: 'visible' });
+          if (!(await resume.isEnabled())) throw new Error('Pause did not reach the runtime owner');
+
+          await resume.click();
+          await arena.getByRole('button', { name: 'Pause' }).waitFor({ state: 'visible' });
+
+          await arena.getByRole('button', { name: 'Reset' }).click();
+          await stage.getByRole('heading', { name: 'Arena of Debate' }).waitFor({ state: 'visible' });
+          await arena.waitForFunction(() => {
+            const input = document.querySelector('#topic');
+            return input && !input.disabled && input.value === '';
+          });
+
+          await browser.close();
+          console.log('cross-tab runtime smoke: PASS');
+          EOF
+          bun /tmp/cross-tab-smoke.mjs
+      - name: Server log on failure
+        if: failure()
+        run: cat /tmp/arena-server.log || true
