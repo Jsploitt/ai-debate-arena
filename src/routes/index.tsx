@@ -11,9 +11,8 @@ import {
   ScoreBanner,
   TopicRail,
 } from "@/components/arena/stage";
+import { useDebateRuntime } from "@/components/arena/DebateRuntimeProvider";
 import { useSettings } from "@/components/arena/SettingsProvider";
-import { useDebate } from "@/lib/debate/useDebate";
-import { useSpeech } from "@/lib/debate/useSpeech";
 import {
   agentMood,
   cloudText,
@@ -97,10 +96,10 @@ const TOPICS_ROW_2_AR = [
 
 function ArenaHome() {
   const { settings, updateSettings } = useSettings();
-  const debate = useDebate(settings);
-  const speech = useSpeech(settings, debate.messages);
+  const { debate, speech } = useDebateRuntime();
 
   const [topic, setTopic] = useState<string | null>(null);
+  const activeTopic = debate.topic || topic;
 
   const isArabic = settings.language === "ar";
   const dir = isArabic ? "rtl" : "ltr";
@@ -166,17 +165,17 @@ function ArenaHome() {
   }, [debate, speech]);
 
   const downloadBrief = useCallback(() => {
-    if (!debate.scorecard || !topic) return;
-    const doc = verdictDocFromScorecard(debate.scorecard, persona, topic, names);
+    if (!debate.scorecard || !activeTopic) return;
+    const doc = verdictDocFromScorecard(debate.scorecard, persona, activeTopic, names);
     downloadVerdictPdf(
       doc,
       persona,
-      topic,
+      activeTopic,
       winnerLabel(debate.scorecard.winner, names),
       proTotal,
       conTotal,
     );
-  }, [debate.scorecard, persona, topic, names, proTotal, conTotal]);
+  }, [debate.scorecard, persona, activeTopic, names, proTotal, conTotal]);
 
   return (
     <main className="flex h-screen flex-col overflow-hidden px-4 py-3">
@@ -196,13 +195,13 @@ function ArenaHome() {
 
         {!started && <h1 className="gold-text text-4xl font-bold sm:text-5xl">Arena of Debate</h1>}
 
-        {topic && (
+        {activeTopic && (
           <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
             <span
               dir={dir}
               className="font-display rounded-lg border border-primary/50 bg-primary/10 px-6 py-2 text-xl font-semibold text-primary sm:text-2xl"
             >
-              {topic}
+              {activeTopic}
             </span>
             <Button variant="ghost" size="sm" onClick={resetAll}>
               <RotateCcw aria-hidden="true" /> New
@@ -261,14 +260,14 @@ function ArenaHome() {
 
           {!started && (
             <div className="text-center text-[11px] tracking-[0.3em] text-muted-foreground uppercase">
-              {topic ? "Awaiting the gavel" : "Pick a motion"}
+              {activeTopic ? "Awaiting the gavel" : "Pick a motion"}
             </div>
           )}
         </div>
       </section>
 
       <footer className="shrink-0">
-        {!topic ? (
+        {!activeTopic ? (
           <div className="space-y-1">
             <TopicRail topics={rails[0]} onPick={setTopic} />
             <TopicRail topics={rails[1]} onPick={setTopic} reverse />
