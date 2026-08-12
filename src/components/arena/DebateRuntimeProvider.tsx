@@ -45,7 +45,8 @@ type RuntimeCommand =
   | { name: "pause" }
   | { name: "resume" }
   | { name: "nextTurn" }
-  | { name: "reset" };
+  | { name: "reset" }
+  | { name: "judge"; interim?: boolean };
 
 type RuntimeMessage =
   | { type: "claim"; ownerId: string }
@@ -105,6 +106,11 @@ export function DebateRuntimeProvider({ children }: { children: ReactNode }) {
   const localDebate = useDebate(settings);
   const localSpeech = useSpeech(settings, localDebate.messages);
 
+  const localDebateRef = useRef(localDebate);
+  localDebateRef.current = localDebate;
+  const localSpeechRef = useRef(localSpeech);
+  localSpeechRef.current = localSpeech;
+
   const instanceIdRef = useRef<string>("");
   if (!instanceIdRef.current) instanceIdRef.current = makeInstanceId();
   const instanceId = instanceIdRef.current;
@@ -129,34 +135,36 @@ export function DebateRuntimeProvider({ children }: { children: ReactNode }) {
     post({
       type: "snapshot",
       ownerId: instanceId,
-      debate: snapshotDebate(localDebate),
-      speech: snapshotSpeech(localSpeech),
+      debate: snapshotDebate(localDebateRef.current),
+      speech: snapshotSpeech(localSpeechRef.current),
     });
-  }, [instanceId, localDebate, localSpeech, post]);
+  }, [instanceId, post]);
 
-  const executeLocalCommand = useCallback(
-    (command: RuntimeCommand) => {
-      switch (command.name) {
-        case "start":
-          void localDebate.start(command.value);
-          break;
-        case "pause":
-          localDebate.pause();
-          break;
-        case "resume":
-          localDebate.resume();
-          break;
-        case "nextTurn":
-          void localDebate.nextTurn();
-          break;
-        case "reset":
-          localDebate.reset();
-          localSpeech.stop();
-          break;
-      }
-    },
-    [localDebate, localSpeech],
-  );
+  const executeLocalCommand = useCallback((command: RuntimeCommand) => {
+    const debate = localDebateRef.current;
+    const speech = localSpeechRef.current;
+    switch (command.name) {
+      case "start":
+        void debate.start(command.value);
+        break;
+      case "pause":
+        debate.pause();
+        break;
+      case "resume":
+        debate.resume();
+        break;
+      case "nextTurn":
+        void debate.nextTurn();
+        break;
+      case "reset":
+        debate.reset();
+        speech.stop();
+        break;
+      case "judge":
+        void debate.judgeDebate(command.interim);
+        break;
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
@@ -171,14 +179,23 @@ export function DebateRuntimeProvider({ children }: { children: ReactNode }) {
       switch (message.type) {
         case "claim": {
           if (message.ownerId === instanceId) return;
-          // An existing owner wins. This prevents two already-open views from
-          // both generating a debate if Start is clicked on the mirror.
+
           if (ownerIdRef.current === instanceId) {
-            postSnapshot();
+            // Resolve the rare simultaneous-Start race deterministically. The
+            // lexicographically smaller id keeps ownership; the loser aborts
+            // its just-started local work and becomes a mirror.
+            if (message.ownerId < instanceId) {
+              localDebateRef.current.reset();
+              localSpeechRef.current.stop();
+              setOwner(message.ownerId);
+            } else {
+              postSnapshot();
+            }
             return;
           }
+
           setOwner(message.ownerId);
-          localSpeech.stop();
+          localSpeechRef.current.stop();
           break;
         }
         case "release": {
@@ -223,12 +240,13 @@ export function DebateRuntimeProvider({ children }: { children: ReactNode }) {
       channel.close();
       channelRef.current = null;
     };
-  }, [executeLocalCommand, instanceId, localSpeech, post, postSnapshot, setOwner]);
+  }, [executeLocalCommand, instanceId, post, postSnapshot, setOwner]);
 
+  // Broadcast every owner state transition. The callbacks above stay stable,
+  // so the channel listener itself is not torn down and recreated each render.
   useEffect(() => {
-    if (ownerId !== instanceId) return;
-    postSnapshot();
-  }, [ownerId, instanceId, postSnapshot]);
+    if (ownerId === instanceId) postSnapshot();
+  }, [ownerId, instanceId, localDebate, localSpeech, postSnapshot]);
 
   const runCommand = useCallback(
     (command: RuntimeCommand) => {
@@ -248,7 +266,8 @@ export function DebateRuntimeProvider({ children }: { children: ReactNode }) {
     [executeLocalCommand, instanceId, post, setOwner],
   );
 
-  const mirrored = ownerId !== null && ownerId !== instanceId && remoteDebate && remoteSpeech;
+  const mirrored =
+    ownerId !== null && ownerId !== instanceId && remoteDebate !== null && remoteSpeech !== null;
 
   const debate = useMemo<DebateRuntime>(() => {
     const state = mirrored ? remoteDebate : snapshotDebate(localDebate);
@@ -262,19 +281,20 @@ export function DebateRuntimeProvider({ children }: { children: ReactNode }) {
       resume: () => runCommand({ name: "resume" }),
       nextTurn: async () => runCommand({ name: "nextTurn" }),
       reset: () => runCommand({ name: "reset" }),
+      judgeDebate: async (interim = false) => runCommand({ name: "judge", interim }),
     };
   }, [localDebate, mirrored, remoteDebate, runCommand]);
 
   const speech = useMemo<SpeechRuntime>(() => {
-    if (!mirrored) return localSpeech;
+    if (!mirrored || !remoteSpeech) return localSpeech;
     return {
       ...localSpeech,
       speakingId: remoteSpeech.speakingId,
       revealFraction: remoteSpeech.revealFraction,
       revealedIds: new Set(remoteSpeech.revealedIds),
       syncActive: remoteSpeech.syncActive,
-      // Only the runtime owner owns audio. A mirror's stop request is expressed
-      // through Reset/Voice settings rather than manipulating another tab's Audio.
+      // Only the runtime owner owns audio. The settings channel tells that tab
+      // when voice is disabled; Reset is forwarded as a runtime command.
       stop: () => undefined,
     };
   }, [localSpeech, mirrored, remoteSpeech]);
