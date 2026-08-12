@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { DebateRuntimeProvider } from "@/components/arena/DebateRuntimeProvider";
 import { SettingsProvider } from "@/components/arena/SettingsProvider";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -131,12 +132,16 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Persisted arena settings are shared by every route, so both `/` and
-          `/arena` see the same configuration without a second source of truth. */}
+      {/* Persisted arena settings are shared by every route and synchronized
+          across same-origin tabs/windows. */}
       <SettingsProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <Toaster position="top-center" />
+        {/* One runtime instance per browser tab. The provider keeps route
+            navigation on one engine and mirrors the owner runtime to other tabs. */}
+        <DebateRuntimeProvider>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+          <Toaster position="top-center" />
+        </DebateRuntimeProvider>
       </SettingsProvider>
     </QueryClientProvider>
   );
