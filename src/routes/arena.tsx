@@ -24,7 +24,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { DebateRuntimeProvider, useDebateRuntime } from "@/components/arena/DebateRuntimeProvider";
+import { useDebateRuntime } from "@/components/arena/DebateRuntimeProvider";
 import { AGENT_ART, AgentStage, ScoreBanner } from "@/components/arena/stage";
 import { ConfigPanel } from "@/components/arena/ConfigPanel";
 import {
@@ -170,12 +170,7 @@ function ControlArena() {
         statusLabel={runtimeLabel(state, debate.usingSimulation)}
       />
 
-      {/* Stage band — the reference characters, at a height that leaves room
-          for the instrumentation below. */}
       <section
-        // overflow-hidden clips the absolutely-positioned character art, which
-        // would otherwise push the page wider than the viewport. On `/` the
-        // h-screen shell already clips it.
         className="relative h-[26vh] min-h-[180px] shrink-0 overflow-hidden rounded-xl sm:h-[34vh]"
         aria-label="Debate stage"
       >
@@ -215,7 +210,6 @@ function ControlArena() {
         </div>
       </section>
 
-      {/* Transport */}
       <section className="arena-panel space-y-3 rounded-xl p-4" aria-label="Transport controls">
         <div className="flex flex-wrap gap-2">
           <label htmlFor="topic" className="sr-only">
