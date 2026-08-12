@@ -12,7 +12,6 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,8 +34,7 @@ import {
   TranscriptPanel,
 } from "@/components/arena/panels";
 import { useSettings } from "@/components/arena/SettingsProvider";
-import { useDebate } from "@/lib/debate/useDebate";
-import { useSpeech } from "@/lib/debate/useSpeech";
+import { useDebateSession } from "@/components/arena/DebateProvider";
 import {
   agentMood,
   effectiveRound,
@@ -67,10 +65,16 @@ export const Route = createFileRoute("/arena")({
 
 function ControlArena() {
   const { settings, updateSettings, resetSettings } = useSettings();
-  const debate = useDebate(settings);
-  const speech = useSpeech(settings, debate.messages);
+  // The same session `/` is looking at — in this tab and in every other tab.
+  const {
+    debate,
+    speech,
+    motion: input,
+    setMotion: setInput,
+    startDebate,
+    resetAll,
+  } = useDebateSession();
 
-  const [input, setInput] = useState("");
   const [autoFollow, setAutoFollow] = useState(true);
 
   const names = { alpha: settings.alpha.name, beta: settings.beta.name };
@@ -95,20 +99,6 @@ function ControlArena() {
 
   const running = debate.phase === "running";
   const started = debate.phase !== "idle" || debate.messages.length > 0;
-
-  const start = useCallback(() => {
-    const topic = input.trim();
-    if (!topic || running) return;
-    void debate.start(topic).catch((error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "The arena could not start.");
-    });
-  }, [debate, input, running]);
-
-  const reset = useCallback(() => {
-    debate.reset();
-    speech.stop();
-    setInput("");
-  }, [debate, speech]);
 
   const exportTranscript = useCallback(() => {
     const markdown = buildTranscriptMarkdown({
@@ -227,7 +217,7 @@ function ControlArena() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") start();
+              if (e.key === "Enter") startDebate();
             }}
             dir={isArabic ? "rtl" : "ltr"}
             placeholder={isArabic ? "اكتب موضوع المناظرة…" : "Enter a motion to debate…"}
@@ -235,7 +225,11 @@ function ControlArena() {
             className="min-w-[240px] flex-1"
           />
 
-          <Button onClick={start} disabled={!input.trim() || started} className="font-display">
+          <Button
+            onClick={startDebate}
+            disabled={!input.trim() || started}
+            className="font-display"
+          >
             <Gavel aria-hidden="true" /> Start
           </Button>
 
@@ -257,7 +251,7 @@ function ControlArena() {
             <SkipForward aria-hidden="true" /> Next turn
           </Button>
 
-          <Button variant="outline" onClick={reset} disabled={!started}>
+          <Button variant="outline" onClick={resetAll} disabled={!started}>
             <RotateCcw aria-hidden="true" /> Reset
           </Button>
 

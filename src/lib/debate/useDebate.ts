@@ -25,6 +25,20 @@ export type Phase = "idle" | "running" | "paused" | "finished";
 /** A model slot in the arena: the two debaters and the judge. */
 export type Slot = Side | "judge";
 
+/** The subset of a mirrored session that another tab can take ownership of. */
+export interface AdoptableSession {
+  topic: string;
+  phase: Phase;
+  messages: DebateMessage[];
+  logs: LogEntry[];
+  usingSimulation: boolean;
+  turnIndex: number;
+  lastTelemetry: Record<Side, Telemetry | null>;
+  contextTokens: number;
+  scorecard: JudgeScorecard | null;
+  resolvedModels: Record<Slot, string | null>;
+}
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 function splitReasoning(raw: string) {
@@ -64,7 +78,17 @@ function systemFor(
     .join("\n");
 }
 
-export function useDebate(settings: ArenaSettings) {
+export interface DebateOptions {
+  /**
+   * Whether this instance is the one actually driving the session. A mirroring
+   * tab must not poll the local runtimes — otherwise every open tab multiplies
+   * the background health traffic against the same endpoints.
+   */
+  active?: boolean;
+}
+
+export function useDebate(settings: ArenaSettings, options: DebateOptions = {}) {
+  const { active = true } = options;
   const [topic, setTopic] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [messages, setMessages] = useState<DebateMessage[]>([]);
@@ -154,10 +178,27 @@ export function useDebate(settings: ArenaSettings) {
   }, [setResolved]);
 
   useEffect(() => {
+    if (!active) return;
     void refreshHealth();
     const id = setInterval(() => void refreshHealth(), 15000);
     return () => clearInterval(id);
-  }, [refreshHealth]);
+  }, [refreshHealth, active]);
+
+  /**
+   * Nothing may outlive the hook. Without this, navigating away mid-debate left
+   * the in-flight stream running, kept hammering the local runtime, and kept the
+   * turn loop calling setState into a torn-down tree.
+   */
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      runningRef.current = false;
+      busyRef.current = false;
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const runTurn = useCallback(
     async (index: number) => {
@@ -294,6 +335,10 @@ export function useDebate(settings: ArenaSettings) {
           if (chunk.promptEvalCount) promptTokens = chunk.promptEvalCount;
         }
       }
+
+      // Torn down while the turn was streaming: drop it rather than writing
+      // telemetry and history into a session that no longer exists.
+      if (!mountedRef.current) return;
 
       const durationMs = performance.now() - started;
       const parts = splitReasoning(raw);
@@ -445,15 +490,15 @@ export function useDebate(settings: ArenaSettings) {
     if (busyRef.current) return;
     busyRef.current = true;
     const total = settingsRef.current.rounds * 2;
-    while (runningRef.current && turnRef.current < total) {
+    while (mountedRef.current && runningRef.current && turnRef.current < total) {
       await runTurn(turnRef.current);
       // Live scoring: refresh the running scorecard after every completed turn.
-      if (turnRef.current < total) {
+      if (mountedRef.current && turnRef.current < total) {
         void judgeDebate(true);
       }
     }
     busyRef.current = false;
-    if (turnRef.current >= total) {
+    if (mountedRef.current && turnRef.current >= total) {
       runningRef.current = false;
       setPhase("finished");
       log("info", "system", "Debate complete.");
@@ -569,9 +614,56 @@ export function useDebate(settings: ArenaSettings) {
     setJudging(false);
   }, []);
 
+  /**
+   * Take over a session that was being driven by another tab.
+   *
+   * The generation stream itself cannot migrate — it died with the tab that
+   * owned it — so an in-flight debate is adopted as `paused`. The per-side chat
+   * history is rebuilt from the transcript, which is what `runTurn` would have
+   * accumulated anyway, so Resume and Next turn genuinely continue the debate
+   * rather than restarting it.
+   */
+  const adoptSession = useCallback((snapshot: AdoptableSession) => {
+    abortRef.current?.abort();
+    runningRef.current = false;
+    busyRef.current = false;
+
+    topicRef.current = snapshot.topic;
+    turnRef.current = snapshot.turnIndex;
+    usingSimulationRef.current = snapshot.usingSimulation;
+    resolvedRef.current = snapshot.resolvedModels;
+    judgeSeqRef.current++;
+
+    const history: Record<Side, ChatMessage[]> = { alpha: [], beta: [] };
+    if (snapshot.topic) {
+      history.alpha.push({ role: "user", content: `Open the debate on: "${snapshot.topic}"` });
+    }
+    for (const message of snapshot.messages) {
+      if (message.streaming || !message.content.trim()) continue;
+      const other: Side = message.side === "alpha" ? "beta" : "alpha";
+      history[message.side].push({ role: "assistant", content: message.content });
+      history[other].push({ role: "user", content: `Your opponent just said: ${message.content}` });
+    }
+    historyRef.current = history;
+
+    setTopic(snapshot.topic);
+    setMessages(snapshot.messages);
+    setLogs(snapshot.logs);
+    setStatus({ alpha: "idle", beta: "idle" });
+    setUsingSimulation(snapshot.usingSimulation);
+    setTurnIndex(snapshot.turnIndex);
+    setLastTelemetry(snapshot.lastTelemetry);
+    setContextTokens(snapshot.contextTokens);
+    setScorecard(snapshot.scorecard);
+    setJudging(false);
+    setResolvedModels(snapshot.resolvedModels);
+    setPhase(snapshot.phase === "running" ? "paused" : snapshot.phase);
+  }, []);
+
   return {
     resolvedModels,
     availableModels,
+    adoptSession,
     topic,
     phase,
     messages,

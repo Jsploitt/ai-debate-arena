@@ -1,6 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "@/lib/debate/presets";
+import {
+  DEFAULT_SETTINGS,
+  SETTINGS_STORAGE_KEY,
+  loadSettings,
+  saveSettings,
+} from "@/lib/debate/presets";
 import type { ArenaSettings } from "@/lib/debate/types";
 
 interface SettingsContextValue {
@@ -28,14 +33,25 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSettings(loadSettings());
     setHydrated(true);
+
+    // `storage` fires in every OTHER tab of this origin, so a change made in one
+    // tab reaches the rest. Without this, a second tab kept rendering — and
+    // re-saving — the configuration as it was when that tab was opened.
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== SETTINGS_STORAGE_KEY) return;
+      setSettings(loadSettings());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const updateSettings = useCallback((patch: Partial<ArenaSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      saveSettings(next);
-      return next;
-    });
+    // Merge onto what is actually persisted, not onto this tab's copy. Merging
+    // onto a stale copy meant a second tab's next edit silently reverted every
+    // unrelated setting another tab had changed in the meantime.
+    const next = { ...loadSettings(), ...patch };
+    saveSettings(next);
+    setSettings(next);
   }, []);
 
   const resetSettings = useCallback(() => {

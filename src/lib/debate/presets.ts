@@ -137,7 +137,8 @@ export const SAMPLE_TOPICS = [
   "Saudi smart cities (THE LINE) need on-premise AI infrastructure",
 ];
 
-const STORAGE_KEY = "debate-arena-settings-v1";
+export const SETTINGS_STORAGE_KEY = "debate-arena-settings-v1";
+const STORAGE_KEY = SETTINGS_STORAGE_KEY;
 
 export function loadSettings(): ArenaSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;

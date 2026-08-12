@@ -1,7 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Gavel, Download, Loader2, RotateCcw, SlidersHorizontal } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +11,7 @@ import {
   TopicRail,
 } from "@/components/arena/stage";
 import { useSettings } from "@/components/arena/SettingsProvider";
-import { useDebate } from "@/lib/debate/useDebate";
-import { useSpeech } from "@/lib/debate/useSpeech";
+import { useDebateSession } from "@/components/arena/DebateProvider";
 import {
   agentMood,
   cloudText,
@@ -97,10 +95,11 @@ const TOPICS_ROW_2_AR = [
 
 function ArenaHome() {
   const { settings, updateSettings } = useSettings();
-  const debate = useDebate(settings);
-  const speech = useSpeech(settings, debate.messages);
+  // One shared session: this is the same debate `/arena` is looking at, in this
+  // tab and in every other tab of this browser.
+  const { debate, speech, motion, setMotion, startDebate, resetAll } = useDebateSession();
 
-  const [topic, setTopic] = useState<string | null>(null);
+  const topic = motion || null;
 
   const isArabic = settings.language === "ar";
   const dir = isArabic ? "rtl" : "ltr";
@@ -151,19 +150,6 @@ function ArenaHome() {
     },
     [settings.judge, updateSettings],
   );
-
-  const startDebate = useCallback(() => {
-    if (!topic || debate.phase === "running") return;
-    void debate.start(topic).catch((error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "The arena could not start.");
-    });
-  }, [debate, topic]);
-
-  const resetAll = useCallback(() => {
-    debate.reset();
-    speech.stop();
-    setTopic(null);
-  }, [debate, speech]);
 
   const downloadBrief = useCallback(() => {
     if (!debate.scorecard || !topic) return;
@@ -270,8 +256,8 @@ function ArenaHome() {
       <footer className="shrink-0">
         {!topic ? (
           <div className="space-y-1">
-            <TopicRail topics={rails[0]} onPick={setTopic} />
-            <TopicRail topics={rails[1]} onPick={setTopic} reverse />
+            <TopicRail topics={rails[0]} onPick={setMotion} />
+            <TopicRail topics={rails[1]} onPick={setMotion} reverse />
           </div>
         ) : hasFinalVerdict ? (
           <div className="arena-panel mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-xl px-5 py-3">

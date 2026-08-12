@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SettingsProvider } from "@/components/arena/SettingsProvider";
+import { DebateProvider } from "@/components/arena/DebateProvider";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -134,9 +135,14 @@ function RootComponent() {
       {/* Persisted arena settings are shared by every route, so both `/` and
           `/arena` see the same configuration without a second source of truth. */}
       <SettingsProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <Toaster position="top-center" />
+        {/* The debate session lives above the outlet for the same reason: `/`
+            and `/arena` are two views of ONE debate, so navigating between them
+            must not tear the state machine down and start a second one. */}
+        <DebateProvider>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+          <Toaster position="top-center" />
+        </DebateProvider>
       </SettingsProvider>
     </QueryClientProvider>
   );

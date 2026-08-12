@@ -8,6 +8,15 @@ interface QueueItem {
   text: string;
 }
 
+export interface SpeechOptions {
+  /**
+   * Whether this instance may actually produce sound. Only the tab driving the
+   * session speaks; mirroring tabs take the reveal state off the wire instead,
+   * so the audience never hears two tabs reading the same turn at once.
+   */
+  active?: boolean;
+}
+
 /**
  * Speaks each finalized debate turn aloud, one at a time, in order — never
  * overlapping Alpha and Beta. Best-effort only: any fetch/playback failure
@@ -18,7 +27,12 @@ interface QueueItem {
  * each turn's text in sync with the voice reading it, rather than at LLM
  * generation speed (which finishes long before the audio does).
  */
-export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
+export function useSpeech(
+  settings: ArenaSettings,
+  messages: DebateMessage[],
+  options: SpeechOptions = {},
+) {
+  const { active = true } = options;
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [revealFraction, setRevealFraction] = useState(0);
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
@@ -31,13 +45,29 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
   const playingRef = useRef(false);
   const spokenIdsRef = useRef(new Set<string>());
   const wasEnabledRef = useRef(settings.tts.enabled);
+  const mountedRef = useRef(true);
+  // Aborts the in-flight synthesis request; replaced per utterance.
+  const requestRef = useRef<AbortController | null>(null);
+  // The object URL currently attached to the audio element, so teardown can
+  // revoke it even when playback never reached "ended".
+  const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
+      queueRef.current = [];
+      playingRef.current = false;
+      requestRef.current?.abort();
       audio.pause();
       audio.src = "";
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      audioRef.current = null;
     };
   }, []);
 
@@ -51,11 +81,15 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
   }, []);
 
   const playNext = useCallback(async () => {
-    if (!settingsRef.current.tts.enabled) {
+    // The queue is drained by a self-recursive call, so every re-entry has to
+    // re-check that the hook is still alive and still allowed to speak.
+    if (!mountedRef.current || !settingsRef.current.tts.enabled) {
       queueRef.current = [];
       playingRef.current = false;
-      setSpeakingId(null);
-      setRevealFraction(0);
+      if (mountedRef.current) {
+        setSpeakingId(null);
+        setRevealFraction(0);
+      }
       return;
     }
     const next = queueRef.current.shift();
@@ -74,8 +108,12 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
       const ar = s.language === "ar";
       const endpoint = ar ? s.tts.endpointAr : s.tts.endpointEn;
       const voice = ar ? undefined : s[next.side].voice;
-      const blob = await synthesizeSpeech(next.text, endpoint, voice);
+      const controller = new AbortController();
+      requestRef.current = controller;
+      const blob = await synthesizeSpeech(next.text, endpoint, voice, controller.signal);
+      if (!mountedRef.current) return;
       const url = URL.createObjectURL(blob);
+      objectUrlRef.current = url;
       const audio = audioRef.current;
       if (audio) {
         await new Promise<void>((resolve) => {
@@ -89,6 +127,7 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
             audio.removeEventListener("error", onDone);
             audio.removeEventListener("timeupdate", onTimeUpdate);
             URL.revokeObjectURL(url);
+            if (objectUrlRef.current === url) objectUrlRef.current = null;
           };
           const onDone = () => {
             setRevealFraction(1);
@@ -106,9 +145,12 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
         });
       }
     } catch (err) {
-      console.warn("[useSpeech] TTS request failed, skipping turn:", err);
+      if (mountedRef.current) {
+        console.warn("[useSpeech] TTS request failed, skipping turn:", err);
+      }
     }
 
+    if (!mountedRef.current) return;
     markRevealed(next.id);
     void playNext();
   }, [markRevealed]);
@@ -125,19 +167,20 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
     }
     wasEnabledRef.current = settings.tts.enabled;
 
-    if (!settings.tts.enabled) return;
+    if (!settings.tts.enabled || !active) return;
     for (const m of messages) {
       if (m.streaming || !m.content.trim() || spokenIdsRef.current.has(m.id)) continue;
       spokenIdsRef.current.add(m.id);
       queueRef.current.push({ id: m.id, side: m.side, text: m.content });
     }
     if (!playingRef.current && queueRef.current.length > 0) void playNext();
-  }, [messages, settings.tts.enabled, playNext]);
+  }, [messages, settings.tts.enabled, active, playNext]);
 
   const stop = useCallback(() => {
     queueRef.current = [];
     playingRef.current = false;
     spokenIdsRef.current.clear();
+    requestRef.current?.abort();
     setSpeakingId(null);
     setRevealFraction(0);
     setRevealedIds(new Set());
@@ -146,13 +189,18 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
       audio.pause();
       audio.src = "";
     }
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
   }, []);
 
-  // Stop immediately if voice generation is turned off mid-playback.
+  // Stop immediately if voice generation is turned off mid-playback, or if this
+  // instance stops being the one allowed to speak.
   useEffect(() => {
-    if (!settings.tts.enabled) stop();
+    if (!settings.tts.enabled || !active) stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.tts.enabled]);
+  }, [settings.tts.enabled, active]);
 
   return {
     speakingId,
