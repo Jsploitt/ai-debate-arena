@@ -24,6 +24,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { DebateRuntimeProvider, useDebateRuntime } from "@/components/arena/DebateRuntimeProvider";
 import { AGENT_ART, AgentStage, ScoreBanner } from "@/components/arena/stage";
 import { ConfigPanel } from "@/components/arena/ConfigPanel";
 import {
@@ -35,8 +36,6 @@ import {
   TranscriptPanel,
 } from "@/components/arena/panels";
 import { useSettings } from "@/components/arena/SettingsProvider";
-import { useDebate } from "@/lib/debate/useDebate";
-import { useSpeech } from "@/lib/debate/useSpeech";
 import {
   agentMood,
   effectiveRound,
@@ -67,8 +66,7 @@ export const Route = createFileRoute("/arena")({
 
 function ControlArena() {
   const { settings, updateSettings, resetSettings } = useSettings();
-  const debate = useDebate(settings);
-  const speech = useSpeech(settings, debate.messages);
+  const { debate, speech } = useDebateRuntime();
 
   const [input, setInput] = useState("");
   const [autoFollow, setAutoFollow] = useState(true);
@@ -95,6 +93,7 @@ function ControlArena() {
 
   const running = debate.phase === "running";
   const started = debate.phase !== "idle" || debate.messages.length > 0;
+  const visibleInput = started ? debate.topic : input;
 
   const start = useCallback(() => {
     const topic = input.trim();
@@ -224,7 +223,7 @@ function ControlArena() {
           </label>
           <Input
             id="topic"
-            value={input}
+            value={visibleInput}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") start();
