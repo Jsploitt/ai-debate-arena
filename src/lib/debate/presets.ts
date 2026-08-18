@@ -62,25 +62,29 @@ export const THINKING_INSTRUCTION = [
 const alpha: DebaterConfig = {
   name: "Debater Alpha",
   endpoint: "http://localhost:11434/api/chat",
-  model: "nemotron3-nano-30b",
+  model: "nemotron3:33b",
   temperature: 0.8,
   topP: 0.9,
   tonePreset: "Analytical",
   thinkingLevel: 1,
   systemPrompt: TONE_PRESETS.Analytical,
   voice: "am_michael",
+  // No character by default — today's shipped behaviour is preserved and
+  // choosing a cast member is opt-in from the Configuration sheet.
+  characterId: null,
 };
 
 const beta: DebaterConfig = {
   name: "Debater Beta",
   endpoint: "http://localhost:11435/api/chat",
-  model: "gemma-4-26b",
+  model: "gemma2:27b",
   temperature: 0.9,
   topP: 0.95,
   tonePreset: "Aggressive",
   thinkingLevel: 1,
   systemPrompt: TONE_PRESETS.Aggressive,
   voice: "af_heart",
+  characterId: null,
 };
 
 const tts: TtsSettings = {
@@ -92,7 +96,7 @@ const tts: TtsSettings = {
 const judge: JudgeConfig = {
   enabled: true,
   endpoint: "http://localhost:11436/api/chat",
-  model: "nemotron3-nano-4b",
+  model: "nemotron-mini",
   temperature: 0.2,
   systemPrompt: JUDGE_SYSTEM_PROMPT,
   weights: { ...DEFAULT_JUDGE_WEIGHTS },

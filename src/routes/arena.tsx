@@ -25,7 +25,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useDebateRuntime } from "@/components/arena/DebateRuntimeProvider";
-import { AGENT_ART, AgentStage, ScoreBanner } from "@/components/arena/stage";
+import { AgentStage, ScoreBanner } from "@/components/arena/stage";
+import { slotArt } from "@/lib/characters";
 import { ConfigPanel } from "@/components/arena/ConfigPanel";
 import {
   HttpMonitor,
@@ -72,6 +73,12 @@ function ControlArena() {
   const [autoFollow, setAutoFollow] = useState(true);
 
   const names = { alpha: settings.alpha.name, beta: settings.beta.name };
+
+  // Stage art follows the stored character only, so editing a prompt or slider
+  // never swaps the avatar mid-session.
+  const alphaArt = slotArt(settings.alpha, "alpha");
+  const betaArt = slotArt(settings.beta, "beta");
+
   const isArabic = settings.language === "ar";
   const samples = isArabic ? SAMPLE_TOPICS_AR : SAMPLE_TOPICS;
 
@@ -176,7 +183,8 @@ function ControlArena() {
       >
         <AgentStage
           label={`${names.alpha}, arguing for the motion`}
-          img={AGENT_ART.alpha[agentMood("alpha", speaking, proTotal, conTotal)]}
+          img={alphaArt.art[agentMood("alpha", speaking, proTotal, conTotal)]}
+          flip={alphaArt.flip}
           lit={speaking === "alpha"}
           dim={speaking === "beta"}
           position="left"
@@ -184,7 +192,8 @@ function ControlArena() {
         />
         <AgentStage
           label={`${names.beta}, arguing against the motion`}
-          img={AGENT_ART.beta[agentMood("beta", speaking, conTotal, proTotal)]}
+          img={betaArt.art[agentMood("beta", speaking, conTotal, proTotal)]}
+          flip={betaArt.flip}
           lit={speaking === "beta"}
           dim={speaking === "alpha"}
           position="right"

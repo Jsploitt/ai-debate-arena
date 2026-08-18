@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { CheckCircle2, Loader2, RefreshCw, RotateCcw, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, RefreshCw, RotateCcw, Shuffle, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DEFAULT_JUDGE_WEIGHTS, JUDGE_CRITERIA } from "@/lib/debate/judge";
 import { listModels } from "@/lib/debate/ollamaClient";
 import { KOKORO_VOICES, TONE_PRESETS } from "@/lib/debate/presets";
-import type { ArenaSettings, DebaterConfig, ExecutionMode, Side } from "@/lib/debate/types";
+import {
+  CHARACTERS,
+  CHARACTER_LIST,
+  characterById,
+  isCharacterModified,
+  randomCast,
+} from "@/lib/characters";
+import type {
+  ArenaSettings,
+  CharacterId,
+  DebaterConfig,
+  ExecutionMode,
+  Side,
+} from "@/lib/debate/types";
 import { cn } from "@/lib/utils";
 
 const THINKING_LABELS = ["Off", "Brief", "Structured", "Deep"];
@@ -284,6 +297,126 @@ function DebaterForm({
   );
 }
 
+/**
+ * Character picker for one slot.
+ *
+ * Selecting a card writes the character's whole preset plus `characterId`.
+ * Editing anything afterwards on the Alpha/Beta tab deliberately leaves
+ * `characterId` alone — the card stays selected and the stage avatar does not
+ * move, it just picks up a "modified" note.
+ */
+function CastSection({
+  side,
+  config,
+  otherCharacterId,
+  running,
+  onSelect,
+}: {
+  side: Side;
+  config: DebaterConfig;
+  /** Who is in the opposite slot, so duplicates can be shown as a swap. */
+  otherCharacterId: CharacterId | null;
+  running?: boolean;
+  onSelect: (id: CharacterId | null) => void;
+}) {
+  const accent = side === "alpha" ? "text-pro" : "text-con";
+  const position = side === "alpha" ? "left" : "right";
+  const otherLabel = side === "alpha" ? "Beta" : "Alpha";
+  const selected = characterById(config.characterId);
+  const modified = isCharacterModified(config);
+
+  return (
+    <section className="space-y-3" aria-labelledby={`cast-${side}-heading`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 id={`cast-${side}-heading`}>
+          <Kicker className={accent}>
+            {side === "alpha" ? "Alpha — argues for" : "Beta — argues against"}
+          </Kicker>
+        </h3>
+        {selected && (
+          <button
+            type="button"
+            disabled={running}
+            onClick={() => onSelect(null)}
+            className="text-[10px] text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {CHARACTER_LIST.map((character) => {
+          const active = character.id === selected?.id;
+          const onOtherSide = character.id === otherCharacterId;
+          return (
+            <button
+              key={character.id}
+              type="button"
+              disabled={running}
+              aria-pressed={active}
+              aria-label={
+                onOtherSide
+                  ? `${character.patch.name} — currently on ${otherLabel}; selecting swaps the two slots`
+                  : character.patch.name
+              }
+              onClick={() => onSelect(character.id)}
+              className={`rounded-xl border p-2 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60 ${
+                active
+                  ? "border-primary bg-primary/10 shadow-[0_0_24px_-6px_var(--primary)]"
+                  : "border-border bg-background/40 hover:border-primary/50"
+              }`}
+            >
+              <img
+                src={character.art.pleased}
+                alt=""
+                aria-hidden="true"
+                className={`h-20 w-full rounded-lg object-cover object-top ${
+                  position === character.nativeSide ? "" : "scale-x-[-1]"
+                }`}
+              />
+              <div className="mt-1.5 font-display text-sm font-bold text-primary">
+                {character.patch.name}
+              </div>
+              <div className="text-[10px] text-foreground/80">{character.title}</div>
+              <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                {character.blurb}
+              </div>
+              {onOtherSide && (
+                <div className="mt-1 text-[10px] text-primary/80">on {otherLabel} — swaps</div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {selected ? (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+          <span>
+            {selected.patch.name} on stage
+            {modified && " · settings modified"}
+          </span>
+          {modified && (
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => onSelect(selected.id)}
+              className="text-primary underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              Restore {selected.patch.name}&rsquo;s settings
+            </button>
+          )}
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          No character — this slot uses the default art and whatever is set on the{" "}
+          {side === "alpha" ? "Alpha" : "Beta"} tab.
+        </p>
+      )}
+    </section>
+  );
+}
+
 type EndpointKey = "alpha" | "beta" | "judge" | "ttsEn" | "ttsAr";
 
 const ENDPOINT_LABELS: Record<EndpointKey, string> = {
@@ -370,6 +503,49 @@ export function ConfigPanel({
 
   const maxTotal = settings.judge.scale * JUDGE_CRITERIA.length;
 
+  /**
+   * Assign a character to one slot.
+   *
+   * The two slots can never hold the same character — a debate between two
+   * copies of one person is not a debate. Rather than disabling the card,
+   * picking someone who is already opposite *swaps* the two slots, which is
+   * what you actually want when you meant to reverse the matchup.
+   */
+  const selectCharacter = (side: Side, id: CharacterId | null) => {
+    const other: Side = side === "alpha" ? "beta" : "alpha";
+    const current = settings[side];
+    const opposite = settings[other];
+
+    if (id === null) {
+      onChange({ [side]: { ...current, characterId: null } } as Partial<ArenaSettings>);
+      return;
+    }
+
+    const applied = { ...current, ...CHARACTERS[id].patch, characterId: id };
+
+    if (opposite.characterId === id) {
+      const displaced = current.characterId;
+      onChange({
+        [side]: applied,
+        [other]: displaced
+          ? { ...opposite, ...CHARACTERS[displaced].patch, characterId: displaced }
+          : { ...opposite, characterId: null },
+      } as Partial<ArenaSettings>);
+      return;
+    }
+
+    onChange({ [side]: applied } as Partial<ArenaSettings>);
+  };
+
+  /** Draw two different characters and seat them in one update. */
+  const randomizeCast = () => {
+    const [first, second] = randomCast();
+    onChange({
+      alpha: { ...settings.alpha, ...CHARACTERS[first].patch, characterId: first },
+      beta: { ...settings.beta, ...CHARACTERS[second].patch, characterId: second },
+    });
+  };
+
   return (
     <div className="space-y-6">
       {running && (
@@ -386,6 +562,9 @@ export function ConfigPanel({
         <TabsList className="w-full">
           <TabsTrigger value="runtime" className="flex-1">
             Runtime
+          </TabsTrigger>
+          <TabsTrigger value="cast" className="flex-1 data-[state=active]:text-primary">
+            Cast
           </TabsTrigger>
           <TabsTrigger value="alpha" className="flex-1 data-[state=active]:text-pro">
             Alpha
@@ -514,6 +693,43 @@ export function ConfigPanel({
               onCheckedChange={(enabled) => onChange({ tts: { ...settings.tts, enabled } })}
             />
           </div>
+        </TabsContent>
+
+        {/* ----------------------------- Cast ---------------------------------- */}
+        <TabsContent value="cast" className="space-y-6 pt-4">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[11px] text-muted-foreground">
+              A character applies a whole preset — name, prompt, sampling and voice. It never
+              changes the model or endpoint, so any character can take either side. Stance comes
+              from the slot, not the character, and the two slots can never hold the same person.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={running}
+              onClick={randomizeCast}
+              className="shrink-0"
+            >
+              <Shuffle aria-hidden="true" /> Randomize
+            </Button>
+          </div>
+
+          <CastSection
+            side="alpha"
+            config={settings.alpha}
+            otherCharacterId={settings.beta.characterId ?? null}
+            running={running}
+            onSelect={(id) => selectCharacter("alpha", id)}
+          />
+
+          <CastSection
+            side="beta"
+            config={settings.beta}
+            otherCharacterId={settings.alpha.characterId ?? null}
+            running={running}
+            onSelect={(id) => selectCharacter("beta", id)}
+          />
         </TabsContent>
 
         <TabsContent value="alpha" className="pt-4">

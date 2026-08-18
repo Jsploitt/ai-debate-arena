@@ -6,16 +6,15 @@
  * hook, so they stay trivially renderable in a test.
  */
 
-import proPleased from "@/assets/pro-pleased.png";
-import proSpeaking from "@/assets/pro-speaking.png";
-import proTense from "@/assets/pro-tense.png";
-import conPleased from "@/assets/con-pleased.png";
-import conSpeaking from "@/assets/con-speaking.png";
-import conTense from "@/assets/con-tense.png";
+import { PRO_ART, CON_ART } from "@/lib/agent-art";
 
+/**
+ * Default side-keyed art, used when a slot has no character selected.
+ * The images themselves now live in `lib/agent-art.ts`.
+ */
 export const AGENT_ART = {
-  alpha: { pleased: proPleased, speaking: proSpeaking, tense: proTense },
-  beta: { pleased: conPleased, speaking: conSpeaking, tense: conTense },
+  alpha: PRO_ART,
+  beta: CON_ART,
 } as const;
 
 export function TopicRail({
@@ -110,6 +109,7 @@ export function AgentStage({
   dim,
   position,
   compact,
+  flip,
 }: {
   label: string;
   img: string;
@@ -118,6 +118,13 @@ export function AgentStage({
   position: "left" | "right";
   /** Shorter art for the /arena band, which shares the viewport with panels. */
   compact?: boolean;
+  /**
+   * Mirror the art horizontally, so a character drawn for one side still faces
+   * into the stage when placed on the other. Safe to do here because nothing
+   * else on the stage is directional: the spotlight beam is centred on the
+   * figure and the lit glow has no offset.
+   */
+  flip?: boolean;
 }) {
   const height = compact ? "h-[22vh] sm:h-[30vh]" : "h-[46vh] sm:h-[60vh]";
   return (
@@ -138,6 +145,8 @@ export function AgentStage({
         width={768}
         height={1024}
         className={`relative ${height} w-auto object-contain transition-all duration-700 ${
+          flip ? "scale-x-[-1]" : ""
+        } ${
           lit
             ? "brightness-125 drop-shadow-[0_0_45px_oklch(0.7_0.13_240/0.6)]"
             : dim

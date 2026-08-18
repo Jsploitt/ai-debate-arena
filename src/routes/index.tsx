@@ -4,13 +4,8 @@ import { Gavel, Download, Loader2, RotateCcw, SlidersHorizontal } from "lucide-r
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  AGENT_ART,
-  AgentStage,
-  CloudBubble,
-  ScoreBanner,
-  TopicRail,
-} from "@/components/arena/stage";
+import { AgentStage, CloudBubble, ScoreBanner, TopicRail } from "@/components/arena/stage";
+import { slotArt } from "@/lib/characters";
 import { useDebateRuntime } from "@/components/arena/DebateRuntimeProvider";
 import { useSettings } from "@/components/arena/SettingsProvider";
 import {
@@ -107,6 +102,11 @@ function ArenaHome() {
     () => ({ alpha: settings.alpha.name, beta: settings.beta.name }),
     [settings.alpha.name, settings.beta.name],
   );
+
+  // Stage art follows the stored character only, so editing a prompt or slider
+  // never swaps the avatar mid-session.
+  const alphaArt = slotArt(settings.alpha, "alpha");
+  const betaArt = slotArt(settings.beta, "beta");
 
   // The persona is derived from the real judge weights rather than tracked
   // separately, so a hand-tuned rubric in the config panel is reflected here
@@ -226,14 +226,16 @@ function ArenaHome() {
       <section className="relative min-h-0 flex-1" aria-label="Debate stage">
         <AgentStage
           label={`${names.alpha}, arguing for the motion`}
-          img={AGENT_ART.alpha[agentMood("alpha", speaking, proTotal, conTotal)]}
+          img={alphaArt.art[agentMood("alpha", speaking, proTotal, conTotal)]}
+          flip={alphaArt.flip}
           lit={speaking === "alpha"}
           dim={speaking === "beta"}
           position="left"
         />
         <AgentStage
           label={`${names.beta}, arguing against the motion`}
-          img={AGENT_ART.beta[agentMood("beta", speaking, conTotal, proTotal)]}
+          img={betaArt.art[agentMood("beta", speaking, conTotal, proTotal)]}
+          flip={betaArt.flip}
           lit={speaking === "beta"}
           dim={speaking === "alpha"}
           position="right"

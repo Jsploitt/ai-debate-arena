@@ -6,6 +6,13 @@ export type ExecutionMode = "auto" | "live" | "simulation";
 
 export type ConnectionState = "unknown" | "checking" | "online" | "offline";
 
+/**
+ * Cast members selectable per slot. Declared here rather than in
+ * `lib/characters.ts` because it is part of the persisted settings contract,
+ * and because that module already imports `DebaterConfig` from this one.
+ */
+export type CharacterId = "fahad" | "noura" | "rania" | "khalid";
+
 export interface DebaterConfig {
   name: string;
   endpoint: string;
@@ -21,6 +28,15 @@ export interface DebaterConfig {
    * shape to reach the same transport without carrying a voice.
    */
   voice?: string;
+  /**
+   * Selected cast member, or null when the slot is hand-configured.
+   *
+   * This is stored rather than derived from the other fields on purpose: the
+   * stage avatar reads from it alone, so editing a prompt or a slider never
+   * changes who is on stage. Optional for the same reason as `voice` — the
+   * judge reuses this shape and has no character.
+   */
+  characterId?: CharacterId | null;
 }
 
 export interface JudgeConfig {
