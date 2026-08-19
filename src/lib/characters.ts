@@ -12,7 +12,7 @@
  */
 
 import type { CharacterId, DebaterConfig, Side } from "./debate/types";
-import { PRO_ART, CON_ART, type AgentMoodArt } from "./agent-art";
+import { FAHAD_ART, KHALID_ART, RANIA_ART, NOURA_ART, type AgentMoodArt } from "./agent-art";
 
 export type { CharacterId };
 
@@ -67,16 +67,15 @@ export const CHARACTERS: Record<CharacterId, Character> = {
     id: "fahad",
     title: "Startup founder",
     blurb: "Fintech. Bold, narrative-driven, sells the vision.",
-    // TODO: replace with Fahad's own artwork when the assets land.
-    art: PRO_ART,
+    art: FAHAD_ART,
     nativeSide: "left",
     patch: {
       name: "Fahad",
       systemPrompt: `You are Fahad, a Saudi fintech founder who has raised real money and shipped real product. Argue in vivid narrative: open with the outcome, name the customer, and make the stakes concrete. Reach for momentum, adoption curves and what competitors are already doing. Treat the caution in the other position as a cost. Keep responses under 90 words. ${COMMIT_TO_SIDE}`,
       tonePreset: "Custom",
-      temperature: 1.0,
+      temperature: 1.1,
       topP: 0.95,
-      thinkingLevel: 1,
+      thinkingLevel: 0,
       voice: "am_adam",
     },
   },
@@ -84,16 +83,15 @@ export const CHARACTERS: Record<CharacterId, Character> = {
     id: "noura",
     title: "Policy analyst",
     blurb: "Government. Blunt, data-heavy, hunts vague claims.",
-    // TODO: replace with Noura's own artwork when the assets land.
-    art: CON_ART,
+    art: NOURA_ART,
     nativeSide: "right",
     patch: {
       name: "Noura",
       systemPrompt: `You are Noura, a government policy analyst who reviews proposals for a living. Make your own case from figures, timelines and precedent. When the position you are opposing says something unquantified — 'scalable', 'soon', 'significant' — name that vagueness and ask what it means in numbers. Be direct and unimpressed by enthusiasm. Keep responses under 90 words. ${COMMIT_TO_SIDE}`,
       tonePreset: "Custom",
-      temperature: 0.5,
-      topP: 0.85,
-      thinkingLevel: 2,
+      temperature: 0.35,
+      topP: 0.78,
+      thinkingLevel: 3,
       voice: "af_kore",
     },
   },
@@ -101,15 +99,14 @@ export const CHARACTERS: Record<CharacterId, Character> = {
     id: "rania",
     title: "Family-business heir",
     blurb: "Logistics. Risk-averse, warm, builds consensus.",
-    // TODO: replace with Rania's own artwork when the assets land.
-    art: PRO_ART,
+    art: RANIA_ART,
     nativeSide: "left",
     patch: {
       name: "Rania",
       systemPrompt: `You are Rania, second-generation leadership at a family logistics firm that has survived three downturns. Argue from consequence and durability: what your side protects, and what breaks under the position you are opposing — who absorbs it, how it is unwound if wrong. Grant the other argument its strongest point warmly before showing what it costs. Keep responses under 90 words. ${COMMIT_TO_SIDE}`,
       tonePreset: "Custom",
-      temperature: 0.7,
-      topP: 0.9,
+      temperature: 0.65,
+      topP: 0.88,
       thinkingLevel: 2,
       voice: "af_sarah",
     },
@@ -118,15 +115,14 @@ export const CHARACTERS: Record<CharacterId, Character> = {
     id: "khalid",
     title: "Marketing strategist",
     blurb: "Persuasive. Argues adoption and experience over architecture.",
-    // TODO: replace with Khalid's own artwork when the assets land.
-    art: CON_ART,
+    art: KHALID_ART,
     nativeSide: "right",
     patch: {
       name: "Khalid",
       systemPrompt: `You are Khalid, a marketing strategist who judges every idea by whether people will actually use it. Argue from experience, friction and perception: who adopts your side, what they feel at first contact, what they tell others. Redirect the other argument's technical points to their human consequence. Land memorable phrasing. Keep responses under 90 words. ${COMMIT_TO_SIDE}`,
       tonePreset: "Custom",
-      temperature: 0.95,
-      topP: 0.95,
+      temperature: 0.85,
+      topP: 0.98,
       thinkingLevel: 1,
       voice: "am_echo",
     },
@@ -170,12 +166,29 @@ export function randomCast(): [CharacterId, CharacterId] {
  * to the default side art when no character is selected.
  */
 export function slotArt(config: DebaterConfig, side: Side): { art: AgentMoodArt; flip: boolean } {
-  const fallback = side === "alpha" ? PRO_ART : CON_ART;
+  const fallback = side === "alpha" ? FAHAD_ART : KHALID_ART;
   const character = characterById(config.characterId);
   if (!character) return { art: fallback, flip: false };
 
   const position = side === "alpha" ? "left" : "right";
   return { art: character.art, flip: position !== character.nativeSide };
+}
+
+/**
+ * The personality half of a slot's config — everything a character owns, as it
+ * currently stands rather than as the registry defines it. Used when swapping
+ * slots so a character carries any hand-tuning with it.
+ */
+export function characterPatchOf(config: DebaterConfig): CharacterPatch {
+  return {
+    name: config.name,
+    systemPrompt: config.systemPrompt,
+    tonePreset: config.tonePreset,
+    temperature: config.temperature,
+    topP: config.topP,
+    thinkingLevel: config.thinkingLevel,
+    voice: config.voice,
+  };
 }
 
 const EPSILON = 0.001;

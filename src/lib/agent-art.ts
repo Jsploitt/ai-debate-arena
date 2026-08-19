@@ -1,35 +1,70 @@
 /**
- * Stage artwork, extracted from `components/arena/stage.tsx` so that
- * `lib/characters.ts` can reference it without a lib -> component import.
+ * Stage artwork, keyed by character and mood.
  *
- * `stage.tsx` still re-exports `AGENT_ART` in its original shape, so every
- * existing call site keeps working unchanged.
+ * Lives here rather than in `components/arena/stage.tsx` so `lib/characters.ts`
+ * can reference it without a lib -> component import.
  */
 
-import proPleased from "@/assets/pro-pleased.png";
-import proSpeaking from "@/assets/pro-speaking.png";
-import proTense from "@/assets/pro-tense.png";
-import conPleased from "@/assets/con-pleased.png";
-import conSpeaking from "@/assets/con-speaking.png";
-import conTense from "@/assets/con-tense.png";
+import fahadBase from "@/assets/fahad-base.png";
+import fahadSpeaking from "@/assets/fahad-speaking.png";
+import fahadPleased from "@/assets/fahad-pleased.png";
+import fahadTense from "@/assets/fahad-tense.png";
 
-/** The three moods `agentMood()` selects between. */
+import khalidBase from "@/assets/khalid-base.png";
+import khalidSpeaking from "@/assets/khalid-speaking.png";
+import khalidPleased from "@/assets/khalid-pleased.png";
+import khalidTense from "@/assets/khalid-tense.png";
+
+import raniaBase from "@/assets/rania-base.png";
+import raniaSpeaking from "@/assets/rania-speaking.png";
+import raniaPleased from "@/assets/rania-pleased.png";
+import raniaTense from "@/assets/rania-tense.png";
+
+import nouraBase from "@/assets/noura-base.png";
+import nouraPleased from "@/assets/noura-pleased.png";
+import nouraTense from "@/assets/noura-tense.png";
+
+/** One image per state `agentMood()` can return. */
 export type AgentMoodArt = {
-  pleased: string;
+  base: string;
   speaking: string;
+  pleased: string;
   tense: string;
 };
 
-/** Default art for the left-hand slot. Drawn facing right, into the stage. */
-export const PRO_ART: AgentMoodArt = {
-  pleased: proPleased,
-  speaking: proSpeaking,
-  tense: proTense,
+/** Drawn facing right — belongs in the left-hand slot. */
+export const FAHAD_ART: AgentMoodArt = {
+  base: fahadBase,
+  speaking: fahadSpeaking,
+  pleased: fahadPleased,
+  tense: fahadTense,
 };
 
-/** Default art for the right-hand slot. Drawn facing left, into the stage. */
-export const CON_ART: AgentMoodArt = {
-  pleased: conPleased,
-  speaking: conSpeaking,
-  tense: conTense,
+/** Drawn facing left — belongs in the right-hand slot. */
+export const KHALID_ART: AgentMoodArt = {
+  base: khalidBase,
+  speaking: khalidSpeaking,
+  pleased: khalidPleased,
+  tense: khalidTense,
+};
+
+/** Drawn facing right — belongs in the left-hand slot. */
+export const RANIA_ART: AgentMoodArt = {
+  base: raniaBase,
+  speaking: raniaSpeaking,
+  pleased: raniaPleased,
+  tense: raniaTense,
+};
+
+/**
+ * Drawn facing left — belongs in the right-hand slot.
+ *
+ * `speaking` deliberately reuses the base art: her niqab covers her mouth, so
+ * there is nothing for a speaking pose to show that base does not already.
+ */
+export const NOURA_ART: AgentMoodArt = {
+  base: nouraBase,
+  speaking: nouraBase,
+  pleased: nouraPleased,
+  tense: nouraTense,
 };

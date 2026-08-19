@@ -150,15 +150,28 @@ export function cloudText(
   return latest.content || null;
 }
 
-/** Emotional state for a side's character art. Speaking always wins. */
+/** The states a character's art can be in. */
+export type AgentMood = "base" | "speaking" | "pleased" | "tense";
+
+/**
+ * Emotional state for a side's character art.
+ *
+ * Each state only appears in the case meant to trigger it: `speaking` while
+ * this side holds the floor, `pleased` when ahead on points, `tense` when
+ * behind, and `base` when none of those apply -- an unscored or level debate,
+ * where the character is simply present and not emoting. Because scores persist
+ * after the final verdict, the winner keeps `pleased` and the loser `tense`
+ * until the arena is reset.
+ */
 export function agentMood(
   side: Side,
   speaking: Side | null,
   ownScore: number,
   otherScore: number,
-): "speaking" | "pleased" | "tense" {
+): AgentMood {
   if (speaking === side) return "speaking";
-  return ownScore >= otherScore ? "pleased" : "tense";
+  if (ownScore === otherScore) return "base";
+  return ownScore > otherScore ? "pleased" : "tense";
 }
 
 /**

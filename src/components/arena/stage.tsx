@@ -6,15 +6,15 @@
  * hook, so they stay trivially renderable in a test.
  */
 
-import { PRO_ART, CON_ART } from "@/lib/agent-art";
+import { FAHAD_ART, KHALID_ART } from "@/lib/agent-art";
 
 /**
  * Default side-keyed art, used when a slot has no character selected.
  * The images themselves now live in `lib/agent-art.ts`.
  */
 export const AGENT_ART = {
-  alpha: PRO_ART,
-  beta: CON_ART,
+  alpha: FAHAD_ART,
+  beta: KHALID_ART,
 } as const;
 
 export function TopicRail({
@@ -142,8 +142,10 @@ export function AgentStage({
         src={img}
         alt=""
         aria-hidden="true"
-        width={768}
-        height={1024}
+        // Matches the real asset dimensions, so the browser reserves the right
+        // aspect ratio and the figure does not jump on load.
+        width={405}
+        height={786}
         className={`relative ${height} w-auto object-contain transition-all duration-700 ${
           flip ? "scale-x-[-1]" : ""
         } ${

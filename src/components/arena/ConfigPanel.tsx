@@ -25,6 +25,7 @@ import {
   CHARACTERS,
   CHARACTER_LIST,
   characterById,
+  characterPatchOf,
   isCharacterModified,
   randomCast,
 } from "@/lib/characters";
@@ -524,12 +525,17 @@ export function ConfigPanel({
     const applied = { ...current, ...CHARACTERS[id].patch, characterId: id };
 
     if (opposite.characterId === id) {
-      const displaced = current.characterId;
+      // A swap moves both characters; it does not reset them. Exchange the
+      // personality each slot is actually holding rather than rebuilding the
+      // displaced one from its registry preset, so anything tuned beforehand
+      // travels with its character instead of being silently discarded.
       onChange({
-        [side]: applied,
-        [other]: displaced
-          ? { ...opposite, ...CHARACTERS[displaced].patch, characterId: displaced }
-          : { ...opposite, characterId: null },
+        [side]: { ...current, ...characterPatchOf(opposite), characterId: id },
+        [other]: {
+          ...opposite,
+          ...characterPatchOf(current),
+          characterId: current.characterId ?? null,
+        },
       } as Partial<ArenaSettings>);
       return;
     }
