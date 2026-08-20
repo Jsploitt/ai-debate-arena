@@ -1,17 +1,19 @@
 import { useCallback, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Gavel, Download, Loader2, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { FileText, Gavel, Download, Loader2, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { AgentStage, CloudBubble, ScoreBanner, TopicRail } from "@/components/arena/stage";
 import { slotArt } from "@/lib/characters";
 import { useDebateRuntime } from "@/components/arena/DebateRuntimeProvider";
+import { VerdictBrief } from "@/components/arena/VerdictBrief";
 import { useSettings } from "@/components/arena/SettingsProvider";
 import {
   agentMood,
   cloudText,
   effectiveRound,
+  focusSide,
   leanPercent,
   runtimeLabel,
   runtimeState,
@@ -27,7 +29,7 @@ import {
 } from "@/lib/personas";
 import { downloadVerdictPdf, verdictDocFromScorecard } from "@/lib/pdf";
 
-const TITLE = "Arena of Debate — Two Local LLMs, One Executive Judge";
+const TITLE = "AI Debate Arena — Two Local LLMs, One Executive Judge";
 const DESCRIPTION =
   "Pick a motion, appoint a CFO, CTO, CMO or CEO judge, and watch two locally hosted models debate it live under the spotlight.";
 
@@ -94,6 +96,9 @@ function ArenaHome() {
   const { debate, speech } = useDebateRuntime();
 
   const [topic, setTopic] = useState<string | null>(null);
+  // The brief opens by itself when the gavel falls, and can be dismissed to
+  // put the two debaters back on screen.
+  const [showBrief, setShowBrief] = useState(true);
   const activeTopic = debate.topic || topic;
 
   const isArabic = settings.language === "ar";
@@ -116,6 +121,9 @@ function ArenaHome() {
 
   const speech_ = speech;
   const speaking = speakingSide(debate.status, debate.messages, speech_);
+  // Between turns nobody is speaking; the last turn keeps the emphasis so the
+  // stage does not flatten in the gaps.
+  const focus = focusSide(speaking, debate.messages);
   const state = runtimeState({
     phase: debate.phase,
     status: debate.status,
@@ -136,6 +144,15 @@ function ArenaHome() {
   const started = debate.phase !== "idle" || debate.messages.length > 0;
   const finished = debate.phase === "finished";
   const hasFinalVerdict = finished && !!debate.scorecard && !debate.scorecard.interim;
+
+  // The brief waits for the room to fall silent. Judging finishes well ahead of
+  // the voice, so gating on the verdict alone dropped the panel over a debater
+  // who was still mid-sentence.
+  const stillSpeaking =
+    speech_.syncActive &&
+    (speech_.speakingId !== null ||
+      debate.messages.some((m) => m.content.trim() && !speech_.revealedIds.has(m.id)));
+  const briefReady = hasFinalVerdict && !stillSpeaking;
 
   const rails = useMemo(
     () => (isArabic ? [TOPICS_ROW_1_AR, TOPICS_ROW_2_AR] : [TOPICS_ROW_1, TOPICS_ROW_2]),
@@ -162,6 +179,7 @@ function ArenaHome() {
     debate.reset();
     speech.stop();
     setTopic(null);
+    setShowBrief(true);
   }, [debate, speech]);
 
   const downloadBrief = useCallback(() => {
@@ -178,32 +196,32 @@ function ArenaHome() {
   }, [debate.scorecard, persona, activeTopic, names, proTotal, conTotal]);
 
   return (
-    <main className="flex h-screen flex-col overflow-hidden px-4 py-3">
-      <header className="shrink-0 text-center">
+    <main className="stage-vignette flex h-screen flex-col overflow-hidden px-4 py-3">
+      <header className="relative z-20 shrink-0 text-center">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-display text-[10px] tracking-[0.3em] text-muted-foreground uppercase">
+          <span className="font-display text-sm tracking-[0.3em] text-muted-foreground uppercase sm:text-base">
             {debate.usingSimulation ? "Simulation" : "Live local models"}
           </span>
           <Link
             to="/arena"
-            className="font-display inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-3 py-1.5 text-[11px] tracking-[0.2em] text-foreground/85 uppercase backdrop-blur transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="font-display inline-flex items-center gap-2 rounded-lg border border-border bg-background/60 px-4 py-2 text-sm tracking-[0.2em] text-foreground/85 uppercase backdrop-blur transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
-            <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+            <SlidersHorizontal className="size-4" aria-hidden="true" />
             Control arena
           </Link>
         </div>
 
-        {!started && <h1 className="gold-text text-4xl font-bold sm:text-5xl">Arena of Debate</h1>}
+        {!started && <h1 className="gold-text text-5xl font-bold sm:text-7xl">AI Debate Arena</h1>}
 
         {activeTopic && (
-          <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-3">
             <span
               dir={dir}
-              className="font-display rounded-lg border border-primary/50 bg-primary/10 px-6 py-2 text-xl font-semibold text-primary sm:text-2xl"
+              className="font-display rounded-xl border-2 border-primary/60 bg-primary/10 px-8 py-2 text-3xl font-bold text-primary shadow-[0_0_40px_-10px_var(--primary)] sm:text-4xl"
             >
               {activeTopic}
             </span>
-            <Button variant="ghost" size="sm" onClick={resetAll}>
+            <Button variant="ghost" onClick={resetAll} className="text-base">
               <RotateCcw aria-hidden="true" /> New
             </Button>
           </div>
@@ -241,34 +259,58 @@ function ArenaHome() {
           position="right"
         />
 
-        <div className="relative z-10 mx-auto flex h-full w-full max-w-[70%] flex-col justify-center gap-4 sm:max-w-[46%]">
+        {/* Covers the whole viewport rather than the stage section: the
+            template is a four-panel 16:9 slide, and the section left it with
+            barely half the height it needs. */}
+        {showBrief && briefReady && (
+          <div className="fixed inset-0 z-30 bg-background/85 p-4 backdrop-blur-sm sm:p-8">
+            <VerdictBrief
+              scorecard={debate.scorecard!}
+              persona={persona}
+              topic={activeTopic!}
+              names={names}
+              settings={settings}
+              messages={debate.messages}
+              language={settings.language}
+              onClose={() => setShowBrief(false)}
+            />
+          </div>
+        )}
+
+        <div className="relative z-10 mx-auto flex h-full min-h-0 w-full max-w-[74%] flex-col justify-center gap-5 overflow-hidden sm:max-w-[52%]">
           <div className="sr-only" aria-live="polite">
             {runtimeLabel(state, debate.usingSimulation)}
           </div>
 
           {proCloud && (
-            <CloudBubble side="alpha" active={speaking === "alpha"} text={proCloud} dir={dir} />
+            <CloudBubble
+              side="alpha"
+              active={speaking === "alpha"}
+              prominent={focus === "alpha"}
+              text={proCloud}
+              dir={dir}
+            />
           )}
           {conCloud && (
-            <CloudBubble side="beta" active={speaking === "beta"} text={conCloud} dir={dir} />
+            <CloudBubble
+              side="beta"
+              active={speaking === "beta"}
+              prominent={focus === "beta"}
+              text={conCloud}
+              dir={dir}
+            />
           )}
 
           {!proCloud && !conCloud && started && (
-            <div className="flex items-center justify-center gap-2 text-center text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            <div className="flex items-center justify-center gap-3 text-center text-xl text-muted-foreground">
+              <Loader2 className="size-6 animate-spin" aria-hidden="true" />
               {runtimeLabel(state, debate.usingSimulation)}
-            </div>
-          )}
-
-          {!started && (
-            <div className="text-center text-[11px] tracking-[0.3em] text-muted-foreground uppercase">
-              {activeTopic ? "Awaiting the gavel" : "Pick a motion"}
             </div>
           )}
         </div>
       </section>
 
-      <footer className="shrink-0">
+      <footer className="relative z-20 shrink-0">
         {!activeTopic ? (
           <div className="space-y-1">
             <TopicRail topics={rails[0]} onPick={setTopic} />
@@ -277,20 +319,28 @@ function ArenaHome() {
         ) : hasFinalVerdict ? (
           <div className="arena-panel mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-xl px-5 py-3">
             <div>
-              <div className="font-display text-[11px] tracking-[0.25em] text-primary uppercase">
+              <div className="font-display text-base tracking-[0.25em] text-primary uppercase">
                 {persona.title} · {persona.doc}
               </div>
-              <p dir={dir} className="mt-1 text-sm text-foreground/90">
+              <p dir={dir} className="mt-1 text-xl text-foreground/90">
                 Winner:{" "}
                 <span className="text-primary">{winnerLabel(debate.scorecard!.winner, names)}</span>{" "}
                 — {debate.scorecard!.verdict}
               </p>
             </div>
             <div className="flex gap-2">
-              <Button asChild variant="outline" className="font-display">
+              <Button
+                variant="outline"
+                size="lg"
+                className="font-display text-base"
+                onClick={() => setShowBrief((open) => !open)}
+              >
+                <FileText aria-hidden="true" /> {showBrief ? "Hide brief" : "Show brief"}
+              </Button>
+              <Button asChild variant="outline" size="lg" className="font-display text-base">
                 <Link to="/arena">Full scorecard</Link>
               </Button>
-              <Button className="font-display" onClick={downloadBrief}>
+              <Button size="lg" className="font-display text-base" onClick={downloadBrief}>
                 <Download aria-hidden="true" /> Download PDF
               </Button>
             </div>
@@ -308,14 +358,16 @@ function ArenaHome() {
                     disabled={started}
                     aria-pressed={active}
                     onClick={() => pickPersona(p.id)}
-                    className={`rounded-xl border px-3 py-2 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60 ${
+                    className={`rounded-xl border px-4 py-3 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60 ${
                       active
                         ? "border-primary bg-primary/10 shadow-[0_0_24px_-6px_var(--primary)]"
                         : "border-border bg-background/40 hover:border-primary/50"
                     }`}
                   >
-                    <div className="font-display text-lg font-bold text-primary">{p.title}</div>
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="font-display text-2xl font-bold text-primary sm:text-3xl">
+                      {p.title}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
                       weights {criterionLabel(p.focus)}
                     </div>
                   </button>
@@ -323,8 +375,8 @@ function ArenaHome() {
               })}
             </div>
             {!started && (
-              <div className="mt-2 text-center">
-                <Button onClick={startDebate} className="font-display">
+              <div className="mt-3 text-center">
+                <Button onClick={startDebate} size="lg" className="font-display text-lg">
                   <Gavel aria-hidden="true" /> Begin the debate
                 </Button>
               </div>

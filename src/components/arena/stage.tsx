@@ -47,7 +47,7 @@ export function TopicRail({
               disabled={disabled}
               tabIndex={i >= topics.length ? -1 : undefined}
               onClick={() => onPick(topic)}
-              className="shrink-0 rounded-lg border border-border bg-background/60 px-5 py-2.5 text-center text-sm whitespace-nowrap text-foreground/85 backdrop-blur transition-colors hover:border-primary hover:bg-primary/15 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
+              className="shrink-0 rounded-xl border border-border bg-background/60 px-7 py-3.5 text-center text-lg whitespace-nowrap text-foreground/85 backdrop-blur transition-colors hover:border-primary hover:bg-primary/15 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50 sm:text-xl"
             >
               {topic}
             </button>
@@ -58,14 +58,29 @@ export function TopicRail({
   );
 }
 
+/**
+ * One constant type size for every turn.
+ *
+ * An earlier version scaled the type to the text length, which meant a turn
+ * started huge and shrank as it streamed in — distracting on a stage. The size
+ * is fixed instead, chosen to fit two full turns in the column at 1440x900.
+ */
+const BUBBLE_TEXT = "text-xl";
+
 export function CloudBubble({
   side,
   active,
+  prominent,
   text,
   dir = "ltr",
 }: {
   side: "alpha" | "beta";
   active: boolean;
+  /**
+   * Gets the larger type. Distinct from `active` so the last turn spoken still
+   * reads as the focus during the gap between turns, when nobody is speaking.
+   */
+  prominent?: boolean;
   text: string;
   dir?: "ltr" | "rtl";
 }) {
@@ -75,17 +90,32 @@ export function CloudBubble({
         side === "alpha" ? "cloud-tail-left self-start" : "cloud-tail-right self-end"
       } ${active ? "scale-100 opacity-100" : "scale-95 opacity-45"}`}
     >
-      <p dir={dir} className="text-sm leading-relaxed font-medium">
+      <p dir={dir} className={`leading-snug font-medium ${BUBBLE_TEXT}`}>
         {text}
       </p>
     </div>
   );
 }
 
-export function LeanBar({ pro, con, percent }: { pro: number; con: number; percent: number }) {
+export function LeanBar({
+  pro,
+  con,
+  percent,
+  compact,
+}: {
+  pro: number;
+  con: number;
+  percent: number;
+  /** The small original bar, kept for the /arena band. */
+  compact?: boolean;
+}) {
   return (
     <div
-      className="relative mx-auto mt-2.5 h-1 w-56 rounded-full bg-gradient-to-r from-pro/70 via-muted to-con/70"
+      className={`relative mx-auto rounded-full bg-gradient-to-r from-pro/70 via-muted to-con/70 ${
+        compact
+          ? "mt-2.5 h-1 w-56"
+          : "mt-4 h-4 w-[32rem] max-w-[70vw] shadow-[inset_0_1px_3px_oklch(0.1_0.02_250/0.6)] ring-1 ring-border/70"
+      }`}
       role="meter"
       aria-label="Which side is ahead"
       aria-valuemin={0}
@@ -93,11 +123,23 @@ export function LeanBar({ pro, con, percent }: { pro: number; con: number; perce
       aria-valuenow={Math.round(percent)}
       aria-valuetext={`Alpha ${pro.toFixed(1)}, Beta ${con.toFixed(1)}`}
     >
-      <span className="absolute top-1/2 left-1/2 h-3 w-px -translate-y-1/2 bg-border" />
       <span
-        style={{ left: `${percent}%` }}
-        className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_14px_2px_var(--primary)] transition-[left] duration-700 ease-out"
+        className={`absolute top-1/2 left-1/2 w-px -translate-y-1/2 bg-border ${
+          compact ? "h-3" : "h-8"
+        }`}
       />
+      {/* The knob travels inside a rail inset by its own radius, so at 0% and
+          100% it stops flush with the ends instead of hanging over them. */}
+      <span className={`absolute inset-y-0 ${compact ? "inset-x-[7px]" : "inset-x-[18px]"}`}>
+        <span
+          style={{ left: `${percent}%` }}
+          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary transition-[left] duration-700 ease-out ${
+            compact
+              ? "size-3.5 shadow-[0_0_14px_2px_var(--primary)]"
+              : "size-9 shadow-[0_0_30px_6px_var(--primary)] ring-4 ring-background/80"
+          }`}
+        />
+      </span>
     </div>
   );
 }
@@ -128,11 +170,15 @@ export function AgentStage({
 }) {
   const height = compact ? "h-[22vh] sm:h-[30vh]" : "h-[46vh] sm:h-[60vh]";
   return (
+    // Spans the full height of the stage section so the beam can start at the
+    // very top of it; the figure is pinned to the bottom by `justify-end`.
     <div
-      className={`pointer-events-none absolute bottom-0 ${position === "left" ? "left-0" : "right-0"}`}
+      className={`pointer-events-none absolute inset-y-0 flex flex-col justify-end ${
+        position === "left" ? "left-0" : "right-0"
+      }`}
     >
       <div
-        className={`pointer-events-none absolute -top-6 left-1/2 h-[105%] w-[240px] -translate-x-1/2 transition-opacity duration-700 sm:w-[320px] ${
+        className={`pointer-events-none absolute inset-y-0 left-1/2 w-[200px] -translate-x-1/2 transition-opacity duration-700 sm:w-[260px] ${
           lit ? "opacity-100" : "opacity-0"
         }`}
       >
@@ -146,7 +192,10 @@ export function AgentStage({
         // aspect ratio and the figure does not jump on load.
         width={405}
         height={786}
-        className={`relative ${height} w-auto object-contain transition-all duration-700 ${
+        // Transitions filter and opacity only. `transition-all` also animated
+        // `transform`, so mirroring a character into the other slot played as
+        // a spin rather than simply being the way they face.
+        className={`relative ${height} w-auto object-contain transition-[filter,opacity] duration-700 ${
           flip ? "scale-x-[-1]" : ""
         } ${
           lit
@@ -167,19 +216,27 @@ export function ScoreSide({
   score,
   color,
   align = "left",
+  compact,
 }: {
   label: string;
   name: string;
   score: number;
   color: string;
   align?: "left" | "right";
+  compact?: boolean;
 }) {
   return (
     <div className={align === "right" ? "text-right" : ""}>
-      <div className={`font-display text-[10px] tracking-[0.3em] uppercase ${color}`}>
+      <div
+        className={`font-display tracking-[0.3em] uppercase ${color} ${
+          compact ? "text-[10px]" : "text-sm sm:text-base"
+        }`}
+      >
         {label} · {name}
       </div>
-      <div className="font-display text-2xl font-bold">{score.toFixed(1)}</div>
+      <div className={`font-display font-bold ${compact ? "text-2xl" : "text-5xl sm:text-6xl"}`}>
+        {score.toFixed(1)}
+      </div>
     </div>
   );
 }
@@ -194,6 +251,7 @@ export function ScoreBanner({
   personaTitle,
   leanPercent,
   provisional,
+  compact,
 }: {
   names: { alpha: string; beta: string };
   proTotal: number;
@@ -203,24 +261,42 @@ export function ScoreBanner({
   personaTitle: string;
   leanPercent: number;
   provisional?: boolean;
+  /** The tighter original scale, for the /arena stage band. */
+  compact?: boolean;
 }) {
   return (
-    <div className="arena-panel mx-auto mt-2 flex max-w-4xl items-center justify-between rounded-xl px-5 py-2">
-      <ScoreSide label="Agent Pro" name={names.alpha} score={proTotal} color="text-pro" />
+    <div
+      className={`arena-panel mx-auto mt-2 flex items-center justify-between rounded-xl ${
+        compact ? "max-w-4xl px-5 py-2" : "max-w-6xl gap-6 px-8 py-2.5"
+      }`}
+    >
+      <ScoreSide
+        label="Agent Pro"
+        name={names.alpha}
+        score={proTotal}
+        color="text-pro"
+        compact={compact}
+      />
       <div className="text-center">
-        <div className="font-display text-[10px] tracking-[0.25em] text-muted-foreground uppercase">
+        <div
+          className={`font-display tracking-[0.25em] text-muted-foreground uppercase ${
+            compact ? "text-[10px]" : "text-base sm:text-lg"
+          }`}
+        >
           Round {Math.min(Math.max(round, 1), totalRounds)} / {totalRounds} · {personaTitle} judging
           {provisional ? " · provisional" : ""}
         </div>
-        <div className="mt-1 flex justify-center gap-1.5">
+        <div className={`flex justify-center ${compact ? "mt-1 gap-1.5" : "mt-2.5 gap-2.5"}`}>
           {Array.from({ length: totalRounds }, (_, i) => i + 1).map((n) => (
             <span
               key={n}
-              className={`h-1.5 w-10 rounded-full ${round > n ? "bg-primary" : "bg-muted"}`}
+              className={`rounded-full ${compact ? "h-1.5 w-10" : "h-3 w-20"} ${
+                round > n ? "bg-primary" : "bg-muted"
+              }`}
             />
           ))}
         </div>
-        <LeanBar pro={proTotal} con={conTotal} percent={leanPercent} />
+        <LeanBar pro={proTotal} con={conTotal} percent={leanPercent} compact={compact} />
       </div>
       <ScoreSide
         label="Agent Con"
@@ -228,6 +304,7 @@ export function ScoreBanner({
         score={conTotal}
         color="text-con"
         align="right"
+        compact={compact}
       />
     </div>
   );

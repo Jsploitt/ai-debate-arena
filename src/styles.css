@@ -248,6 +248,35 @@
   background: radial-gradient(ellipse 60% 100% at 50% 0%, oklch(0.62 0.15 245 / 0.35), transparent);
 }
 
+/**
+ * Darkens the edges of the stage so the eye lands on the speaker rather than
+ * on the figures' outer shoulders.
+ *
+ * Applied to the full-viewport `main`, not to the stage section. Confined to
+ * the section it terminates at that element's bounds, and the step between
+ * darkened section and undarkened page reads as a visible rectangle.
+ *
+ * Sits at `z-index: 1`, so it covers the bottom-anchored art while the bubble
+ * column (`z-10`) and the header/footer (`z-20`) stay above it.
+ */
+@utility stage-vignette {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse 58% 72% at 50% 50%,
+      transparent 42%,
+      oklch(0.12 0.022 250 / 0.5) 76%,
+      oklch(0.09 0.018 250 / 0.85) 100%
+    );
+  }
+}
+
 /* ---- White cloud speech bubble ---- */
 @utility cloud-bubble {
   position: relative;

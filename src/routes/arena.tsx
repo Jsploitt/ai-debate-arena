@@ -210,6 +210,7 @@ function ControlArena() {
               personaTitle={persona.title}
               leanPercent={leanPercent(proTotal, conTotal)}
               provisional={debate.scorecard?.interim}
+              compact
             />
           ) : (
             <p className="text-[11px] tracking-[0.3em] text-muted-foreground uppercase">

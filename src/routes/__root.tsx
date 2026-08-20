@@ -75,7 +75,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-const TITLE = "Arena of Debate — Two Local LLMs, One Executive Judge";
+const TITLE = "AI Debate Arena — Two Local LLMs, One Executive Judge";
 const DESCRIPTION =
   "Pick a motion, appoint a CFO, CTO, CMO or CEO judge, and watch two locally hosted models debate it live under the spotlight — with streaming reasoning, weighted scoring, bilingual voice and a downloadable brief.";
 
