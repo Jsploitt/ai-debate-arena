@@ -126,6 +126,18 @@ export function speakingSide(
 }
 
 /**
+ * Which side the stage should emphasise.
+ *
+ * The current speaker while someone holds the floor, and otherwise whoever
+ * spoke last. Without the fallback the stage flattens between turns, which is
+ * most of the wall-clock time in a real debate.
+ */
+export function focusSide(speaking: Side | null, messages: DebateMessage[]): Side | null {
+  if (speaking) return speaking;
+  return messages[messages.length - 1]?.side ?? null;
+}
+
+/**
  * The text to show in a side's speech cloud: its most recent turn, truncated
  * to whatever the voice has actually read aloud when sync is active.
  */
@@ -182,7 +194,10 @@ export function agentMood(
 export function leanPercent(pro: number, con: number): number {
   const total = pro + con;
   if (total <= 0) return 50;
-  return Math.min(92, Math.max(8, (pro / total) * 100));
+  // The knob is a left-to-right position on a pro→con gradient, so the side
+  // that is ahead has to pull it toward *itself*. Returning pro's share sent
+  // it the other way: alpha at 45 against beta at 30 parked the dot on con.
+  return Math.min(92, Math.max(8, (con / total) * 100));
 }
 
 /**

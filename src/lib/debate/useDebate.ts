@@ -27,17 +27,60 @@ export type Slot = Side | "judge";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+/**
+ * Separate a model's private reasoning from what it actually says on stage.
+ *
+ * Matching only a literal `<think>`…`</think>` pair is not enough. Models
+ * reliably produce three other shapes, and every one of them has reached the
+ * stage, the voice queue and the judge transcript, because all three read
+ * `message.content`:
+ *
+ *   - a bare `[Thinking: …]` / `Assumptions: … Rebuttal:` preamble in prose;
+ *   - `<think>` closed with a stray `>` instead of `</think>`;
+ *   - `<think>` never closed at all.
+ *
+ * The unterminated cases are resolved by looking for where the reasoning stops
+ * sounding like notes — a blank line, or the closing bracket — and treating
+ * everything after it as speech.
+ */
 function splitReasoning(raw: string) {
-  const open = raw.indexOf("<think>");
-  if (open === -1) return { reasoning: "", content: raw };
-  const close = raw.indexOf("</think>");
-  if (close === -1) {
-    return { reasoning: raw.slice(open + 7), content: "" };
+  let text = raw;
+  const reasoning: string[] = [];
+
+  // Well-formed pairs first.
+  text = text.replace(/<think>([\s\S]*?)<\/think>/gi, (_m, inner: string) => {
+    reasoning.push(inner.trim());
+    return "";
+  });
+
+  // `<think>` with a stray `>` close, or none at all.
+  const open = text.search(/<think>/i);
+  if (open !== -1) {
+    const rest = text.slice(open + 7);
+    const stop = rest.search(/(?:\n\s*\n|(?<![-<])>\s)/);
+    if (stop === -1) {
+      reasoning.push(rest.trim());
+      text = text.slice(0, open);
+    } else {
+      reasoning.push(rest.slice(0, stop).trim());
+      text = text.slice(0, open) + rest.slice(stop).replace(/^(?:\s*\n\s*\n|>\s)/, "");
+    }
   }
-  return {
-    reasoning: raw.slice(open + 7, close).trim(),
-    content: (raw.slice(0, open) + raw.slice(close + 8)).trim(),
-  };
+
+  // A bracketed prose preamble: `[Thinking: … ]`.
+  text = text.replace(/\[\s*(?:thinking|thought|reasoning)\s*:[\s\S]*?\]/gi, (m) => {
+    reasoning.push(m.trim());
+    return "";
+  });
+
+  // An unbracketed notes preamble, e.g. "Assumptions: … Rebuttal: …".
+  const notes = text.match(/^\s*(?:assumptions|thinking|reasoning|plan)\s*:[\s\S]*?(?:\n\s*\n|$)/i);
+  if (notes) {
+    reasoning.push(notes[0].trim());
+    text = text.slice(notes[0].length);
+  }
+
+  return { reasoning: reasoning.join("\n").trim(), content: text.trim() };
 }
 
 function systemFor(
@@ -45,6 +88,7 @@ function systemFor(
   topic: string,
   side: Side,
   language: DebateLanguage = "en",
+  opening = false,
 ) {
   const stance =
     side === "alpha" ? "You argue FOR the resolution." : "You argue AGAINST the resolution.";
@@ -54,9 +98,21 @@ function systemFor(
     `Resolution: "${topic}"`,
     "Speak in first person, directly and only as yourself — never in the third person, and never narrate or describe your own argument from the outside.",
     'Do NOT write phrases like "Debater Alpha argues", "my rebuttal shows", "Alpha\'s case is" or any other self-referential label — those make you sound like a report about the debate, not a participant in it.',
-    'Talk straight to your opponent using "you"/"your", as if replying to what they just said, the way a real person would in a live argument. Never describe the debate\'s structure or rounds.',
+    opening
+      ? 'This is the FIRST thing said in the debate. Your opponent has not spoken yet, so you have nothing to reply to: do not open with "you claim", "you assume", "you\'re wrong" or any other response to an argument that does not exist. State your own case from scratch.'
+      : 'Talk straight to your opponent using "you"/"your", as if replying to what they just said, the way a real person would in a live argument. Never describe the debate\'s structure or rounds.',
     'Never refer to your opponent by any name or label (not "Beta", "Alpha", "my opponent", "Debater X", etc.) — call them "you" every time, exactly like a real person arguing face to face never says the other person\'s debate title out loud.',
     "Respond with one focused argument. Never role-play the opponent. Never use bullet lists.",
+    // Openers kept arriving as invented anecdotes -- a named colleague, then a
+    // named customer ("Fatima in Riyadh") with a timestamp and a metric. None
+    // of it is real, none of it has context, and it reads as nonsense on stage.
+    'Never name an individual person. No colleagues, customers, users or contacts -- invented or real. Refer to people only by role ("a merchant", "an engineering team").',
+    'Never invent an anecdote or claim something happened: no "this morning", no calls you took, no conversations you had, no internal metrics or figures about your opponent\'s company. You have no inside information and no private examples.',
+    "Do not attribute specific actions or statistics to named real companies. Reason about the industry in general terms instead.",
+    // This runs in front of a live audience, so the register matters as much as
+    // the argument. Disagree with the position, never disparage people.
+    'Stay courteous and professional throughout. Argue hard against the IDEA, never against your opponent as a person: no insults, no sneering, no contempt, and no dismissive labels for any group of people ("freeloaders" and the like). Nothing you say should be capable of offending anyone in the room.',
+    "Keep the tone measured and constructive, the way two executives disagree in a boardroom — confident and direct, never combative.",
     THINKING_INSTRUCTION[Math.min(config.thinkingLevel, THINKING_INSTRUCTION.length - 1)],
     LANGUAGE_INSTRUCTION[language],
   ]
@@ -182,7 +238,10 @@ export function useDebate(settings: ArenaSettings) {
       }
 
       const payload: ChatMessage[] = [
-        { role: "system", content: systemFor(config, topicValue, side, s.language) },
+        {
+          role: "system",
+          content: systemFor(config, topicValue, side, s.language, index === 0),
+        },
         ...historyRef.current[side],
       ];
 
@@ -345,10 +404,28 @@ export function useDebate(settings: ArenaSettings) {
   const messagesRef = useRef<DebateMessage[]>([]);
   messagesRef.current = messages;
 
+  const scorecardRef = useRef<JudgeScorecard | null>(null);
+  scorecardRef.current = scorecard;
+
   const judgeSeqRef = useRef(0);
 
+  /**
+   * Commit only the side that just spoke.
+   *
+   * A live update rescores the whole transcript, so both totals used to jump
+   * together after every turn and it was impossible to see who had just been
+   * awarded what. Keeping the other side's numbers frozen means points land
+   * on one debater, right after their own turn.
+   */
+  const mergeSide = useCallback((next: JudgeScorecard, side: Side | null): JudgeScorecard => {
+    const prev = scorecardRef.current;
+    if (!side || !prev) return next;
+    const other: Side = side === "alpha" ? "beta" : "alpha";
+    return { ...next, [other]: prev[other] } as JudgeScorecard;
+  }, []);
+
   const judgeDebate = useCallback(
-    async (interim = false) => {
+    async (interim = false, onlySide: Side | null = null) => {
       const s = settingsRef.current;
       const transcript = messagesRef.current.filter((m) => !m.streaming && m.content.trim());
       if (!s.judge.enabled || transcript.length < 1 || !topicRef.current) return;
@@ -356,8 +433,9 @@ export function useDebate(settings: ArenaSettings) {
       const seq = ++judgeSeqRef.current;
       const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
       setJudging(true);
-      // Keep the previous scorecard visible while a live update is computed.
-      if (!interim) setScorecard(null);
+      // Keep the previous scorecard visible while ANY update is computed. The
+      // final run used to blank it, so the scoreboard flashed 0.0 / 0.0 for a
+      // few seconds right before the verdict landed.
       log(
         "info",
         "system",
@@ -395,12 +473,12 @@ export function useDebate(settings: ArenaSettings) {
             (partial) => {
               // Live-stream the verdict + scorecard as the judge writes it.
               if (seq !== judgeSeqRef.current) return;
-              setScorecard(partial);
+              setScorecard(mergeSide(partial, onlySide));
             },
           );
           if (seq !== judgeSeqRef.current) return;
           if (live) {
-            setScorecard(live);
+            setScorecard(mergeSide(live, onlySide));
             log(
               "info",
               "system",
@@ -430,7 +508,7 @@ export function useDebate(settings: ArenaSettings) {
         interim,
         s.language,
       );
-      setScorecard(simulated);
+      setScorecard(mergeSide(simulated, onlySide));
       log(
         "info",
         "system",
@@ -438,7 +516,7 @@ export function useDebate(settings: ArenaSettings) {
       );
       setJudging(false);
     },
-    [log, setResolved],
+    [log, setResolved, mergeSide],
   );
 
   const loop = useCallback(async () => {
@@ -447,9 +525,9 @@ export function useDebate(settings: ArenaSettings) {
     const total = settingsRef.current.rounds * 2;
     while (runningRef.current && turnRef.current < total) {
       await runTurn(turnRef.current);
-      // Live scoring: refresh the running scorecard after every completed turn.
+      // Live scoring: score the side that just spoke, on its own.
       if (turnRef.current < total) {
-        void judgeDebate(true);
+        void judgeDebate(true, turnRef.current % 2 === 0 ? "beta" : "alpha");
       }
     }
     busyRef.current = false;
@@ -544,8 +622,8 @@ export function useDebate(settings: ArenaSettings) {
     if (turnRef.current >= total) {
       setPhase("finished");
       void judgeDebate();
-    } else if (turnRef.current % 2 === 0) {
-      void judgeDebate(true);
+    } else {
+      void judgeDebate(true, turnRef.current % 2 === 0 ? "beta" : "alpha");
     }
   }, [runTurn, judgeDebate]);
 
