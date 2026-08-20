@@ -15,7 +15,7 @@ TanStack Start (React + Vite + Tailwind v4). Two local LLMs debate a motion; a t
 
 | Route    | Title in the UI   | Role                                                                    |
 | -------- | ----------------- | ----------------------------------------------------------------------- |
-| `/`      | "Arena of Debate" | **Stage** — the presentation view LEAP visitors see                     |
+| `/`      | "AI Debate Arena" | **Stage** — the presentation view LEAP visitors see                     |
 | `/arena` | "Control Arena"   | **Operator** surface — full instrumentation and the Configuration sheet |
 
 Get this the right way round: `/arena` is the _control_ page and links to `/` labelled "Stage".
@@ -259,7 +259,83 @@ code.
   be processed; saying that on the first turn would have saved a great deal of time.
 - Prefers concise output. Long explanations of what is about to happen are not wanted; results are.
 
-## 7. What's next
+## 7. Session of 2026-08-20 — stage legibility + the winner's brief
+
+### Stage, for readability at a distance
+
+`AI Debate Arena` replaces "Arena of Debate" (h1 and both `<title>` constants). "Pick a motion"
+and "Awaiting the gavel" are gone. Scores, round label, topic pill, judge cards, topic rails and
+the `ScoreBanner` are all substantially larger; `/arena` is unaffected because `ScoreBanner`,
+`ScoreSide` and `LeanBar` gained a `compact` prop that route passes.
+
+- **The lean bar** is `h-4 w-[32rem]` with a `size-9` knob. The knob travels inside a rail inset by
+  its own radius (`inset-x-[18px]`), so at 0% and 100% it stops flush instead of hanging over.
+- **The spotlight** now spans the stage: `AgentStage`'s wrapper is `absolute inset-y-0 flex
+flex-col justify-end`, so the beam starts at the top of the section and the figure stays pinned
+  to the bottom. Verified lit — see `spotlight-2.png` in that session's scratchpad.
+- **`stage-vignette`** is a new `@utility` on `main`, not on the stage `<section>`. Confined to the
+  section it terminated at that element's bounds and read as a visible rectangle. It sits at
+  `z-index:1`; header and footer were given `relative z-20` to stay above it.
+
+### Bubble type is sized from text length — do not add `sm:` uplifts
+
+`BUBBLE_SIZES` in `stage.tsx` picks a type scale from `text.length`. A fixed size plus a height cap
+clipped arguments mid-sentence, which reads as a bug on stage.
+
+**The trap, hit once:** the first version used `text-4xl sm:text-5xl`. Every desktop is above the
+`sm` breakpoint, so the uplift is not a bonus — it _is_ the size, and it put the top step a full
+step over budget, spilling text through the footer. The ladder is single-class and tuned to the
+real column (~750px wide, ~250px per bubble at 1440x900). Measured across 70 samples of a live
+debate: worst overflow 3px.
+
+`focusSide()` in `presentation.ts` is new: the current speaker, or whoever spoke last. Without it
+the stage flattens between turns, which is most of the wall clock.
+
+### The winner's brief (`src/lib/verdict/`, `VerdictBrief.tsx`, `/brief`)
+
+Four persona HTML templates the user supplied, tokenised to `{{topic}}`, `{{winner}}`,
+`{{next1..4}}`, `{{reason1..4}}`, `{{bar1..4}}`, `{{watch1..4}}`, `{{verdict}}`, `{{lang}}`,
+`{{dir}}`. On a final verdict the _winning debater's own model_ fills the twelve prose slots.
+
+**Accuracy is the whole design.** Every number on the page is real: the bars are the judge's
+per-criterion scores for the winner, on that persona's four heaviest-weighted criteria, and the
+criterion label is prepended to each reason so the bar cannot be misread as scoring the sentence.
+
+The model is barred from stating any figure, and the bar is enforced three times, because the
+prompt alone measurably does not hold — a live run produced "98.8% of users", "over one dollar
+monthly", and "five point three times return", the last one spelling the number out to dodge a
+digit ban. So: the prompt states it, `fabricatedFields()` sends offending lines back for one
+corrective rewrite, and `tidy()` drops any field that still carries a figure in favour of the
+template's own wording. `hasFabricatedNumber()` rejects digits/%/currency outright and spelled
+numerals only when a unit follows within two words, so "one of the strongest" survives.
+
+**Parsing is deliberately forgiving.** `extractJsonObjects` returns _every_ balanced `{…}` and the
+first that validates wins; taking only the first lost whenever a model reasoned out loud with a
+brace in it, which failed two of five live runs. Array lengths are normalised rather than
+required — demanding exactly four bullets threw away eleven good fields over one missing one.
+
+The QR code carries _data_, not the document: the rendered brief is ~7KB, far past QR capacity, so
+`payload.ts` deflates the facts+fields (~1KB) into a base64url URL fragment and `/brief` re-runs
+`renderBrief` on it. No server state, and a fragment never leaves the browser. Templates are in
+`.prettierignore` — prettier restructures their markup and shifts the vh-based layout.
+
+### Art
+
+The white matte fringe is gone from all seven Noura/Rania files. Only the _colour_ of rim pixels
+changed — alpha is byte-identical in all seven, verified — so no garment was reshaped. Script kept
+at `dehalo.py` in that session's scratchpad.
+
+## 8. Open issues found this session
+
+|         | Issue                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Evidence |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **T1**  | **Both TTS containers die into a bad CUDA context** and stay "healthy" while every synthesis 500s (`CUDA error: unknown error` on `tts-en`, `operation not permitted` on `tts-ar`). The browser shows it as CORS — a red herring; the OPTIONS preflight does return `access-control-allow-origin: *`, the 500 path just skips the CORS middleware. It also kills the spotlight, since `effectiveStatus` gates "speaking" on TTS ids when `tts.enabled`. **Fix: `docker restart tts-en tts-ar`.** Cleared 2026-08-20 and verified — all four voices (am_adam/am_echo/af_sarah/af_kore) return 200 with distinct audio, spotlight lights again. Expect recurrence; check this first if the voice is silent. |
+| **T1b** | Arabic TTS removed entirely 2026-08-20 (user call): `endpointAr` dropped from `TtsSettings`/presets/`useSpeech`/ConfigPanel, `tts-ar` deleted from `docker-compose.yml`, container stopped and removed. `docker/tts-ar/` is left on disk to make it reversible. Note the old Arabic path passed `voice: undefined`, so both debaters shared one narrator; Arabic now uses each character's own Kokoro voice.                                                                                                                                                                                                                                                                                              |
+| **T1c** | The TTS endpoint Test used to ping `/health` and render "0 models installed" — the count came from an empty `models` array meant for Ollama. Worse, `/health` stayed green right through the CUDA outage. It now POSTs a real synthesis and reports the audio size.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **T2**  | The `<think>` leak is worse than F5 suggested. `splitReasoning` matches the literal `<think>`/`</think>` pair only; models emit `[Thinking: …]` prose and unterminated `<think>…>`, both of which reach the stage, the TTS queue and the judge transcript (`m.content` feeds all three). Left unfixed — flagged to the user, not yet actioned.                                                                                                                                                                                                                                                                                                                                                            |
+| **T3**  | At 390px the two figures overlap in the middle of the stage. Pre-existing (each is ~200px wide at `h-[46vh]`), not introduced here.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+## 9. What's next
 
 Visual improvement, under an explicit constraint from the user: **no component changes, no hooks
 added or removed.** That leaves `src/styles.css` tokens and `@utility` classes, Tailwind classes on
