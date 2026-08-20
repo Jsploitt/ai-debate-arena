@@ -90,7 +90,6 @@ const beta: DebaterConfig = {
 const tts: TtsSettings = {
   enabled: true,
   endpointEn: "http://localhost:8100/synthesize",
-  endpointAr: "http://localhost:8101/synthesize",
 };
 
 const judge: JudgeConfig = {

@@ -48,7 +48,7 @@ No default workflow requires one:
 bun .claude/skills/local-llm-fixtures/scripts/mock-ollama.ts
 ```
 
-This binds the same five ports as `docker-compose.yml` (11434, 11435, 11436, 8100, 8101) with
+This binds the same ports as `docker-compose.yml` (11434, 11435, 11436, 8100) with
 permissive CORS, so the app's default settings work untouched. Failure injection via `?fail=`,
 `?judge=` and `?format=` query parameters — see that skill for the full matrix.
 

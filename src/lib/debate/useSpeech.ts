@@ -71,10 +71,10 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
 
     try {
       const s = settingsRef.current;
-      const ar = s.language === "ar";
-      const endpoint = ar ? s.tts.endpointAr : s.tts.endpointEn;
-      const voice = ar ? undefined : s[next.side].voice;
-      const blob = await synthesizeSpeech(next.text, endpoint, voice);
+      // One voice service for both languages, and the speaker's own voice
+      // either way — the Arabic path used to drop the voice entirely, so both
+      // debaters shared one narrator.
+      const blob = await synthesizeSpeech(next.text, s.tts.endpointEn, s[next.side].voice);
       const url = URL.createObjectURL(blob);
       const audio = audioRef.current;
       if (audio) {

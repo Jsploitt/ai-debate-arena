@@ -91,10 +91,8 @@ export type DebateLanguage = "en" | "ar";
 export interface TtsSettings {
   /** Master switch — when false, no TTS requests are made at all. */
   enabled: boolean;
-  /** Kokoro (English) synthesis endpoint. */
+  /** Kokoro synthesis endpoint. The only voice service. */
   endpointEn: string;
-  /** MMS-TTS-ara (Arabic) synthesis endpoint. */
-  endpointAr: string;
 }
 
 export interface ArenaSettings {

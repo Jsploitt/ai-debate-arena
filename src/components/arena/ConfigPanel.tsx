@@ -84,7 +84,7 @@ function Field({
 type TestState =
   | { status: "idle" }
   | { status: "pending" }
-  | { status: "ok"; models: string[] }
+  | { status: "ok"; models: string[]; note?: string }
   | { status: "empty" }
   | { status: "error"; message: string };
 
@@ -116,7 +116,8 @@ function ConnectionTest({ state, onTest }: { state: TestState; onTest: () => voi
         {state.status === "ok" && (
           <span className="flex items-center gap-1.5 text-[11px] text-pro">
             <CheckCircle2 className="size-3.5" aria-hidden="true" />
-            Reachable — {state.models.length} model{state.models.length === 1 ? "" : "s"} installed
+            {state.note ??
+              `Reachable — ${state.models.length} model${state.models.length === 1 ? "" : "s"} installed`}
           </span>
         )}
         {state.status === "empty" && (
@@ -418,14 +419,13 @@ function CastSection({
   );
 }
 
-type EndpointKey = "alpha" | "beta" | "judge" | "ttsEn" | "ttsAr";
+type EndpointKey = "alpha" | "beta" | "judge" | "ttsEn";
 
 const ENDPOINT_LABELS: Record<EndpointKey, string> = {
   alpha: "Debater Alpha — Ollama",
   beta: "Debater Beta — Ollama",
   judge: "AI Judge — Ollama",
-  ttsEn: "English TTS — Kokoro",
-  ttsAr: "Arabic TTS — MMS-TTS",
+  ttsEn: "Voice — Kokoro TTS",
 };
 
 const ENDPOINT_PORTS: Record<EndpointKey, string> = {
@@ -433,7 +433,6 @@ const ENDPOINT_PORTS: Record<EndpointKey, string> = {
   beta: "11435",
   judge: "11436",
   ttsEn: "8100",
-  ttsAr: "8101",
 };
 
 export function ConfigPanel({
@@ -453,18 +452,15 @@ export function ConfigPanel({
     beta: { status: "idle" },
     judge: { status: "idle" },
     ttsEn: { status: "idle" },
-    ttsAr: { status: "idle" },
   });
 
   const endpointOf = (key: EndpointKey): string => {
     if (key === "ttsEn") return settings.tts.endpointEn;
-    if (key === "ttsAr") return settings.tts.endpointAr;
     return settings[key].endpoint;
   };
 
   const setEndpoint = (key: EndpointKey, endpoint: string) => {
     if (key === "ttsEn") onChange({ tts: { ...settings.tts, endpointEn: endpoint } });
-    else if (key === "ttsAr") onChange({ tts: { ...settings.tts, endpointAr: endpoint } });
     else onChange({ [key]: { ...settings[key], endpoint } } as Partial<ArenaSettings>);
     setTests((prev) => ({ ...prev, [key]: { status: "idle" } }));
   };
@@ -472,16 +468,35 @@ export function ConfigPanel({
   const test = useCallback(async (key: EndpointKey, endpoint: string) => {
     setTests((prev) => ({ ...prev, [key]: { status: "pending" } }));
 
-    if (key === "ttsEn" || key === "ttsAr") {
-      // The TTS services expose /health rather than a model list.
+    if (key === "ttsEn") {
+      // Synthesize for real rather than pinging /health. The service answers
+      // /health with 200 even when its CUDA context is dead and every
+      // synthesis 500s, so a health check reports green through a total
+      // outage — which is exactly what it did.
       try {
-        const origin = new URL(endpoint).origin;
-        const response = await fetch(`${origin}/health`);
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: "Arena voice check.", voice: "am_adam" }),
+        });
+        if (!response.ok) {
+          setTests((prev) => ({
+            ...prev,
+            [key]: {
+              status: "error",
+              message: `Reachable but cannot synthesize (HTTP ${response.status}) — try restarting the TTS container`,
+            },
+          }));
+          return;
+        }
+        const audio = await response.blob();
         setTests((prev) => ({
           ...prev,
-          [key]: response.ok
-            ? { status: "ok", models: [] }
-            : { status: "error", message: `Reachable but unhealthy (HTTP ${response.status})` },
+          [key]: {
+            status: "ok",
+            models: [],
+            note: `Speaking — returned ${(audio.size / 1024).toFixed(0)} KB of audio`,
+          },
         }));
       } catch {
         setTests((prev) => ({
