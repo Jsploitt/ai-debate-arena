@@ -24,6 +24,7 @@ import {
   leanPercent,
   runtimeLabel,
   runtimeState,
+  scoredTurnsDelivered,
   speakingSide,
 } from "@/lib/debate/presentation";
 import {
@@ -167,8 +168,24 @@ function ArenaHome() {
     speech: speech_,
   });
 
-  const proTotal = debate.scorecard?.alpha.total ?? 0;
-  const conTotal = debate.scorecard?.beta.total ?? 0;
+  // The scoreboard the audience sees. The engine's scorecard updates as soon
+  // as a turn *generates*, which is well before the audience has heard it —
+  // so the raw card is held back until every turn it scored has actually been
+  // delivered, and points land right after the speaker finishes.
+  const [scorecard, setScorecard] = useState<typeof debate.scorecard>(null);
+  useEffect(() => {
+    const candidate = debate.scorecard;
+    if (!candidate) {
+      setScorecard(null);
+      return;
+    }
+    if (scoredTurnsDelivered(candidate, debate.messages, speech_)) {
+      setScorecard(candidate);
+    }
+  }, [debate.scorecard, debate.messages, speech_]);
+
+  const proTotal = scorecard?.alpha.total ?? 0;
+  const conTotal = scorecard?.beta.total ?? 0;
   const round = effectiveRound(debate.turnIndex, debate.messages, speech_);
 
   const proCloud = cloudText("alpha", debate.messages, speech_, settings.language);
@@ -176,7 +193,7 @@ function ArenaHome() {
 
   const started = debate.phase !== "idle" || debate.messages.length > 0;
   const finished = debate.phase === "finished";
-  const hasFinalVerdict = finished && !!debate.scorecard && !debate.scorecard.interim;
+  const hasFinalVerdict = finished && !!scorecard && !scorecard.interim;
 
   // The brief waits for the room to fall silent. Judging finishes well ahead of
   // the voice, so gating on the verdict alone dropped the panel over a debater
@@ -219,17 +236,17 @@ function ArenaHome() {
   }, [debate, speech, updateSettings]);
 
   const downloadBrief = useCallback(() => {
-    if (!debate.scorecard || !activeTopic) return;
-    const doc = verdictDocFromScorecard(debate.scorecard, persona, activeTopic, names);
+    if (!scorecard || !activeTopic) return;
+    const doc = verdictDocFromScorecard(scorecard, persona, activeTopic, names);
     downloadVerdictPdf(
       doc,
       persona,
       activeTopic,
-      winnerLabel(debate.scorecard.winner, names),
+      winnerLabel(scorecard.winner, names),
       proTotal,
       conTotal,
     );
-  }, [debate.scorecard, persona, activeTopic, names, proTotal, conTotal]);
+  }, [scorecard, persona, activeTopic, names, proTotal, conTotal]);
 
   return (
     <main className="stage-vignette stage-backdrop flex h-screen flex-col overflow-hidden px-4 py-3">
@@ -275,7 +292,7 @@ function ArenaHome() {
             round={round}
             totalRounds={settings.rounds}
             leanPercent={leanPercent(proTotal, conTotal)}
-            provisional={debate.scorecard?.interim}
+            provisional={scorecard?.interim}
           />
         )}
       </header>
@@ -328,7 +345,7 @@ function ArenaHome() {
         {showBrief && briefReady && (
           <div className="fixed inset-0 z-30 bg-background/85 p-4 backdrop-blur-sm sm:p-8">
             <VerdictBrief
-              scorecard={debate.scorecard!}
+              scorecard={scorecard!}
               persona={persona}
               topic={activeTopic!}
               names={names}
@@ -387,8 +404,8 @@ function ArenaHome() {
               </div>
               <p dir={dir} className="mt-1 text-xl text-foreground/90">
                 Winner:{" "}
-                <span className="text-primary">{winnerLabel(debate.scorecard!.winner, names)}</span>{" "}
-                — {debate.scorecard!.verdict}
+                <span className="text-primary">{winnerLabel(scorecard!.winner, names)}</span> —{" "}
+                {scorecard!.verdict}
               </p>
             </div>
             <div className="flex gap-2">
@@ -451,7 +468,7 @@ function ArenaHome() {
               </div>
               <div className="text-sm text-muted-foreground sm:text-base">
                 weights {criterionLabel(persona.focus)} · {persona.docFraming}
-                {debate.scorecard?.interim ? " · score is provisional" : ""}
+                {scorecard?.interim ? " · score is provisional" : ""}
               </div>
             </div>
           </div>

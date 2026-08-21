@@ -9,7 +9,7 @@
  * Nothing here may import React, touch the DOM, or read browser globals.
  */
 
-import type { DebateMessage, Side, SpeakerStatus } from "./types";
+import type { DebateMessage, JudgeScorecard, Side, SpeakerStatus } from "./types";
 import type { Phase } from "./useDebate";
 
 /** The slice of `useSpeech`'s return value these helpers depend on. */
@@ -191,6 +191,28 @@ export function agentMood(
  * Clamped away from the extremes so the dot never sits on the track's edge,
  * and centred when there is nothing to compare yet.
  */
+/**
+ * Whether every turn a scorecard covers has finished being delivered to the
+ * audience.
+ *
+ * The judge scores as soon as a turn *generates*, which with voice sync (or
+ * the silent paced reveal) is long before the audience has heard it. Showing
+ * that scorecard immediately moves the numbers while the character is still
+ * mid-sentence, which reads as the judge interrupting. Views hold the
+ * previous scorecard until this returns true, so points land right after the
+ * turn ends — in live and simulation mode alike.
+ */
+export function scoredTurnsDelivered(
+  scorecard: JudgeScorecard,
+  messages: DebateMessage[],
+  speech: SpeechView,
+): boolean {
+  const delivered = speech.syncActive
+    ? messages.filter((m) => speech.revealedIds.has(m.id)).length
+    : messages.filter((m) => !m.streaming && m.content.trim()).length;
+  return delivered >= (scorecard.turnsScored ?? 0);
+}
+
 export function leanPercent(pro: number, con: number): number {
   const total = pro + con;
   if (total <= 0) return 50;

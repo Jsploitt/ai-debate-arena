@@ -65,7 +65,10 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
    */
   const silentReveal = useCallback((item: QueueItem) => {
     const words = item.text.trim().split(/\s+/).filter(Boolean).length;
-    const durationMs = Math.min(18000, Math.max(2500, (words / 2.6) * 1000));
+    // Paced like the streaming client, not like speech: simulateStream emits
+    // a word every ~18-63ms (~40ms average), and the voiceless reveal should
+    // feel like watching that stream, not like waiting out a phantom reading.
+    const durationMs = Math.max(800, words * 42);
     const started = performance.now();
     return new Promise<void>((resolve) => {
       const timer = setInterval(() => {
@@ -84,7 +87,7 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
         } else {
           setRevealFraction(fraction);
         }
-      }, 80);
+      }, 50);
     });
   }, []);
 

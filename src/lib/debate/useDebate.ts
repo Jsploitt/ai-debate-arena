@@ -537,8 +537,13 @@ export function useDebate(settings: ArenaSettings) {
             interim,
             s.language,
             (partial) => {
-              // Live-stream the verdict + scorecard as the judge writes it.
               if (seq !== judgeSeqRef.current) return;
+              // Interim updates land as ONE discrete change when the judge
+              // finishes, right after the scored turn — streaming them made
+              // the scoreboard drift continuously while a debater was still
+              // speaking. Only the final verdict streams in live, when the
+              // floor is already silent.
+              if (interim) return;
               setScorecard(mergeSide(partial, onlySide));
             },
           );
