@@ -100,7 +100,11 @@ function SlotButton({
                   src={character.art.pleased}
                   alt=""
                   aria-hidden="true"
-                  className={`h-24 w-full rounded-lg object-cover object-top ${
+                  // aspect 405/430 ≈ the head-and-shoulders crop of the
+                  // 405x786 figure: cover at this ratio always shows exactly
+                  // the top 430 rows — the whole head, chin included — at any
+                  // rendered size, instead of a fixed height that cut mid-face.
+                  className={`aspect-[405/430] w-full rounded-lg object-cover object-top ${
                     position === character.nativeSide ? "" : "scale-x-[-1]"
                   }`}
                 />

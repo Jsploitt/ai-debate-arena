@@ -372,7 +372,9 @@ function CastSection({
                 src={character.art.pleased}
                 alt=""
                 aria-hidden="true"
-                className={`h-20 w-full rounded-lg object-cover object-top ${
+                // aspect 405/430: cover shows exactly the top 430 rows of the
+                // 405x786 figure — the whole head — at any rendered width.
+                className={`aspect-[405/430] w-full rounded-lg object-cover object-top ${
                   position === character.nativeSide ? "" : "scale-x-[-1]"
                 }`}
               />
