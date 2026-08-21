@@ -179,26 +179,30 @@ export function AgentStage({
    */
   flip?: boolean;
 }) {
-  const height = compact ? "h-[22vh] sm:h-[30vh]" : "h-[46vh] sm:h-[60vh]";
+  const height = compact ? "h-[22vh] sm:h-[30vh]" : "h-[44vh] sm:h-[58vh]";
   // On the presentation stage the beam overshoots the top of the section by
   // 50vh so it visibly starts at the top of the *screen* — the section begins
   // below the header, and a beam that materialised mid-air read as a glitch.
   // The /arena band shares its viewport with panels above it, so its compact
   // beam stays confined to the band.
-  const beamSpan = compact ? "inset-y-0" : "-top-[50vh] bottom-0";
+  //
+  // The figures stand on the stage-horizon floor strip (see `/`), not on the
+  // viewport edge: `pb-[4.5vh]` lifts the feet onto the line, and the beam
+  // ends where the feet are rather than running past them.
+  const beamSpan = compact ? "inset-y-0" : "-top-[50vh] bottom-[4vh]";
   const beamWidth = compact ? "w-[200px] sm:w-[260px]" : "w-[240px] sm:w-[370px]";
   return (
     // Spans the full height of the stage section so the beam can start at the
     // very top of it; the figure is pinned to the bottom by `justify-end`.
     <div
       className={`pointer-events-none absolute inset-y-0 flex flex-col justify-end ${
-        position === "left"
-          ? compact
+        compact
+          ? position === "left"
             ? "left-0"
-            : "left-[1.5vw]"
-          : compact
-            ? "right-0"
-            : "right-[1.5vw]"
+            : "right-0"
+          : position === "left"
+            ? "left-[1.5vw] pb-[4.5vh]"
+            : "right-[1.5vw] pb-[4.5vh]"
       }`}
     >
       <div
@@ -209,10 +213,17 @@ export function AgentStage({
         <div className="spotlight-beam h-full w-full" />
       </div>
       {!compact && (
+        // The light pool under the figure. Faintly present the whole time so
+        // the character always reads as standing ON something, and brighter
+        // under the live speaker. Above the vignette (z-2), which otherwise
+        // swallowed it at the darkened stage edges.
         <div
           aria-hidden="true"
-          className={`stage-floor pointer-events-none absolute bottom-0 left-1/2 h-[9vh] w-[130%] -translate-x-1/2 transition-opacity duration-700 ${
-            lit ? "opacity-90" : "opacity-0"
+          // Top edge at the feet: stage-floor's ellipse is centred on the top
+          // of its element, so the glow lands at the feet and washes down the
+          // floor strip.
+          className={`stage-floor pointer-events-none absolute bottom-0 left-1/2 z-[2] h-[5.5vh] w-[140%] -translate-x-1/2 transition-opacity duration-700 ${
+            lit ? "opacity-100" : "opacity-40"
           }`}
         />
       )}

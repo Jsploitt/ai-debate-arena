@@ -281,6 +281,13 @@ function ArenaHome() {
       </header>
 
       <section className="relative min-h-0 flex-1" aria-label="Debate stage">
+        {/* The floor: a lit edge at the figures' feet with a wash below it.
+            AgentStage lifts the figures onto this line, so the strip beneath
+            is visible stage floor rather than empty margin. */}
+        <div
+          aria-hidden="true"
+          className="stage-horizon pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[4.5vh]"
+        />
         <AgentStage
           label={`${names.alpha}, arguing for the motion`}
           img={alphaArt.art[agentMood("alpha", speaking, proTotal, conTotal)]}

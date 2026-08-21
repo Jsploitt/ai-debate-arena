@@ -255,7 +255,27 @@
 }
 
 @utility stage-floor {
-  background: radial-gradient(ellipse 60% 100% at 50% 0%, oklch(0.62 0.15 245 / 0.35), transparent);
+  background: radial-gradient(ellipse 60% 100% at 50% 0%, oklch(0.64 0.15 245 / 0.5), transparent);
+}
+
+/*
+ * The stage floor itself: a thin lit edge running the width of the stage with
+ * a soft wash below it. The figures' feet sit on this line (AgentStage lifts
+ * them by the strip's height), which is what finally makes the void read as a
+ * room with a floor instead of characters pasted onto a backdrop. Sits at
+ * z-2, above the vignette, or the darkened stage edges swallow the line.
+ */
+@utility stage-horizon {
+  border-top: 1px solid oklch(0.72 0.13 242 / 0.45);
+  background:
+    linear-gradient(
+      to bottom,
+      oklch(0.68 0.14 244 / 0.16),
+      oklch(0.62 0.15 245 / 0.05) 55%,
+      transparent
+    ),
+    radial-gradient(ellipse 55% 140% at 50% 0%, oklch(0.62 0.15 245 / 0.2), transparent 72%);
+  mask-image: linear-gradient(to right, transparent, black 9%, black 91%, transparent);
 }
 
 /*
