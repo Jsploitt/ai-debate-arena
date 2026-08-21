@@ -29,7 +29,26 @@ export async function listModels(endpoint: string): Promise<string[]> {
   }
 }
 
-export function buildRequestBody(config: DebaterConfig, messages: ChatMessage[]) {
+/**
+ * Per-request overrides for calls that need something other than the slot's
+ * debate configuration — currently only the verdict brief, which constrains
+ * the response to a JSON schema via Ollama structured outputs.
+ */
+export interface RequestOverrides {
+  /**
+   * Ollama's `format` field: `"json"` or a JSON schema object. Constrained
+   * decoding is dramatically more reliable than asking a local model nicely
+   * for JSON. Endpoints that do not know the field ignore it.
+   */
+  format?: unknown;
+  temperature?: number;
+}
+
+export function buildRequestBody(
+  config: DebaterConfig,
+  messages: ChatMessage[],
+  overrides?: RequestOverrides,
+) {
   return {
     model: config.model,
     messages,
@@ -41,8 +60,9 @@ export function buildRequestBody(config: DebaterConfig, messages: ChatMessage[])
     // tag instruction (see THINKING_INSTRUCTION), which is what the UI
     // actually parses — deterministic across model families.
     think: false,
+    ...(overrides?.format !== undefined ? { format: overrides.format } : {}),
     options: {
-      temperature: config.temperature,
+      temperature: overrides?.temperature ?? config.temperature,
       top_p: config.topP,
     },
   };
@@ -137,11 +157,12 @@ export async function* streamChat(
   config: DebaterConfig,
   messages: ChatMessage[],
   signal?: AbortSignal,
+  overrides?: RequestOverrides,
 ): AsyncGenerator<StreamChunk> {
   const res = await fetch(config.endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(buildRequestBody(config, messages)),
+    body: JSON.stringify(buildRequestBody(config, messages, overrides)),
     signal,
   });
 

@@ -375,13 +375,42 @@ export function parseBriefFields(raw: string): BriefFields | null {
   return null;
 }
 
+/**
+ * Ollama structured-outputs schema for the brief. Constrained decoding is what
+ * actually makes local models fill the template: prompt-only JSON held up so
+ * poorly on the arena's models that the brief usually fell back to its generic
+ * wording. Endpoints that do not understand `format` ignore it, and the
+ * prompt + parse + retry chain below still stands for those.
+ */
+const BRIEF_FORMAT = {
+  type: "object",
+  properties: {
+    next: { type: "array", items: { type: "string" }, minItems: 4, maxItems: 4 },
+    reasons: { type: "array", items: { type: "string" }, minItems: 4, maxItems: 4 },
+    watch: { type: "array", items: { type: "string" }, minItems: 4, maxItems: 4 },
+    verdict: { type: "string" },
+  },
+  required: ["next", "reasons", "watch", "verdict"],
+} as const;
+
+/**
+ * The brief is filled at a fixed moderate temperature rather than the
+ * debater's own. A character tuned hot for the stage (Fahad runs at 1.1)
+ * drifts out of any structured format; the brief needs the character's voice
+ * from the prompt, not the character's sampling.
+ */
+const BRIEF_TEMPERATURE = 0.4;
+
 async function attemptFill(
   config: DebaterConfig,
   messages: ChatMessage[],
   signal?: AbortSignal,
 ): Promise<{ fields: BriefFields | null; raw: string }> {
   let raw = "";
-  for await (const chunk of streamChat({ ...config, thinkingLevel: 0 }, messages, signal)) {
+  for await (const chunk of streamChat({ ...config, thinkingLevel: 0 }, messages, signal, {
+    format: BRIEF_FORMAT,
+    temperature: BRIEF_TEMPERATURE,
+  })) {
     raw += chunk.content;
   }
   return { fields: parseBriefFields(raw), raw };

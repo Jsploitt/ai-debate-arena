@@ -28,6 +28,53 @@ export type Slot = Side | "judge";
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 /**
+ * The hard per-turn word budget, enforced by the engine rather than trusted to
+ * the prompt. Local models routinely blow through a "keep it under N words"
+ * instruction, so the stream is stopped once the sentence that crosses this
+ * budget completes — see `clipAtSentenceEnd`.
+ */
+export const TURN_WORD_LIMIT = 50;
+
+/**
+ * How far past the budget a turn may run while waiting for the current
+ * sentence to end. A model that stops punctuating entirely would otherwise
+ * stream forever; at this ceiling the turn is cut at the last whitespace,
+ * which is the one case where a clean sentence end is not on offer.
+ */
+const TURN_WORD_CEILING = TURN_WORD_LIMIT * 2;
+
+const wordCount = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
+
+/**
+ * Clip a streaming turn at the end of the sentence that crosses the word
+ * budget.
+ *
+ * Returns `null` while the text is still within budget, or over budget but
+ * mid-sentence — the caller keeps streaming. Once the crossing sentence ends
+ * (`. ! ? ؟ …`, Latin or Arabic), the clipped text is returned and the caller
+ * stops the stream. The turn therefore never cuts mid-word or mid-sentence;
+ * it simply doesn't get to start another sentence.
+ */
+export function clipAtSentenceEnd(text: string, limit = TURN_WORD_LIMIT): string | null {
+  if (wordCount(text) <= limit) return null;
+
+  const boundary = /[.!?؟…]+["'”»)]*(?=\s|$)/g;
+  let match: RegExpExecArray | null;
+  while ((match = boundary.exec(text)) !== null) {
+    const prefix = text.slice(0, match.index + match[0].length);
+    if (wordCount(prefix) >= limit) return prefix.trim();
+  }
+
+  // No sentence end since the budget was crossed. Give the sentence room, but
+  // not forever: at the ceiling, fall back to the last whole word.
+  if (wordCount(text) >= TURN_WORD_CEILING) {
+    const words = text.trim().split(/\s+/).slice(0, TURN_WORD_CEILING);
+    return words.join(" ");
+  }
+  return null;
+}
+
+/**
  * Separate a model's private reasoning from what it actually says on stage.
  *
  * Matching only a literal `<think>`…`</think>` pair is not enough. Models
@@ -103,6 +150,7 @@ function systemFor(
       : 'Talk straight to your opponent using "you"/"your", as if replying to what they just said, the way a real person would in a live argument. Never describe the debate\'s structure or rounds.',
     'Never refer to your opponent by any name or label (not "Beta", "Alpha", "my opponent", "Debater X", etc.) — call them "you" every time, exactly like a real person arguing face to face never says the other person\'s debate title out loud.',
     "Respond with one focused argument. Never role-play the opponent. Never use bullet lists.",
+    `Hard limit: ${TURN_WORD_LIMIT} words per turn. The stage microphone cuts off at the end of the sentence that crosses that limit, so land your strongest point early and stop — a short, complete argument always beats a long one that gets cut.`,
     // Openers kept arriving as invented anecdotes -- a named colleague, then a
     // named customer ("Fatima in Riyadh") with a timestamp and a metric. None
     // of it is real, none of it has context, and it reads as nonsense on stage.
@@ -284,6 +332,9 @@ export function useDebate(settings: ArenaSettings) {
       let evalCount = 0;
       let promptTokens = 0;
       let chunkCount = 0;
+      // Set once the visible content crosses the word budget and its final
+      // sentence completes; from then on this is the turn's whole text.
+      let clippedContent: string | null = null;
 
       const iterator = live
         ? streamChat(config, payload, controller.signal)
@@ -304,13 +355,15 @@ export function useDebate(settings: ArenaSettings) {
             raw += chunk.content;
             evalCount += 1;
             const parts = splitReasoning(raw);
+            clippedContent = clipAtSentenceEnd(parts.content);
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === messageId
-                  ? { ...m, content: parts.content, reasoning: parts.reasoning }
+                  ? { ...m, content: clippedContent ?? parts.content, reasoning: parts.reasoning }
                   : m,
               ),
             );
+            if (clippedContent !== null) break;
           }
           chunkCount += 1;
           if (chunkCount % 6 === 0 || chunk.done) {
@@ -341,17 +394,30 @@ export function useDebate(settings: ArenaSettings) {
             raw += chunk.content;
             evalCount += 1;
             const parts = splitReasoning(raw);
+            clippedContent = clipAtSentenceEnd(parts.content);
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === messageId
-                  ? { ...m, content: parts.content, reasoning: parts.reasoning }
+                  ? { ...m, content: clippedContent ?? parts.content, reasoning: parts.reasoning }
                   : m,
               ),
             );
+            if (clippedContent !== null) break;
           }
           if (chunk.evalCount) evalCount = chunk.evalCount;
           if (chunk.promptEvalCount) promptTokens = chunk.promptEvalCount;
         }
+      }
+
+      // A clipped turn leaves the request streaming server-side; stop it so
+      // the runtime is not still generating a turn nobody will see.
+      if (clippedContent !== null) {
+        controller.abort();
+        log(
+          "info",
+          side,
+          `Turn reached the ${TURN_WORD_LIMIT}-word limit — stopped at the sentence end.`,
+        );
       }
 
       const durationMs = performance.now() - started;
@@ -364,13 +430,14 @@ export function useDebate(settings: ArenaSettings) {
         durationMs: Math.round(durationMs),
       };
 
+      const spoken = clippedContent ?? (parts.content || raw);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId
             ? {
                 ...m,
                 streaming: false,
-                content: parts.content || raw,
+                content: spoken,
                 reasoning: parts.reasoning,
                 telemetry,
               }
@@ -381,7 +448,6 @@ export function useDebate(settings: ArenaSettings) {
       setContextTokens((prev) => prev + evalCount + (promptTokens || Math.round(raw.length / 4)));
       setStatus((prev) => ({ ...prev, [side]: "idle" }));
 
-      const spoken = parts.content || raw;
       historyRef.current[side].push({ role: "assistant", content: spoken });
       const other: Side = side === "alpha" ? "beta" : "alpha";
       historyRef.current[other].push({

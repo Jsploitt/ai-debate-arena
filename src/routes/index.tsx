@@ -1,11 +1,18 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { FileText, Gavel, Download, Loader2, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { AgentStage, CloudBubble, ScoreBanner, TopicRail } from "@/components/arena/stage";
-import { slotArt } from "@/lib/characters";
+import {
+  AgentStage,
+  CloudBubble,
+  Nameplate,
+  ScoreBanner,
+  TopicRail,
+} from "@/components/arena/stage";
+import { CastRail } from "@/components/arena/CastRail";
+import { characterById, randomCastPatch, slotArt } from "@/lib/characters";
 import { useDebateRuntime } from "@/components/arena/DebateRuntimeProvider";
 import { VerdictBrief } from "@/components/arena/VerdictBrief";
 import { useSettings } from "@/components/arena/SettingsProvider";
@@ -92,7 +99,7 @@ const TOPICS_ROW_2_AR = [
 ];
 
 function ArenaHome() {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, hydrated } = useSettings();
   const { debate, speech } = useDebateRuntime();
 
   const [topic, setTopic] = useState<string | null>(null);
@@ -112,6 +119,32 @@ function ArenaHome() {
   // never swaps the avatar mid-session.
   const alphaArt = slotArt(settings.alpha, "alpha");
   const betaArt = slotArt(settings.beta, "beta");
+
+  /**
+   * A fresh random cast for every debate, so the booth needs no configuring:
+   * once on load, and again from `resetAll` each time the stage returns to
+   * idle. A pick made in the cast switcher afterwards overrides the draw for
+   * that debate. Kept behind refs and a short delay so a tab that is
+   * mirroring someone else's live debate never reshuffles the cast mid-run.
+   */
+  const castShuffled = useRef(false);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const debateStateRef = useRef({ phase: debate.phase, hasTurns: debate.messages.length > 0 });
+  debateStateRef.current = { phase: debate.phase, hasTurns: debate.messages.length > 0 };
+
+  useEffect(() => {
+    if (!hydrated || castShuffled.current) return;
+    const timer = window.setTimeout(() => {
+      if (castShuffled.current) return;
+      castShuffled.current = true;
+      const { phase, hasTurns } = debateStateRef.current;
+      if (phase === "idle" && !hasTurns) {
+        updateSettings(randomCastPatch(settingsRef.current));
+      }
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [hydrated, updateSettings]);
 
   // The persona is derived from the real judge weights rather than tracked
   // separately, so a hand-tuned rubric in the config panel is reflected here
@@ -180,7 +213,10 @@ function ArenaHome() {
     speech.stop();
     setTopic(null);
     setShowBrief(true);
-  }, [debate, speech]);
+    // The next debate gets a fresh pairing by default; picking in the cast
+    // switcher afterwards still overrides it.
+    updateSettings(randomCastPatch(settingsRef.current));
+  }, [debate, speech, updateSettings]);
 
   const downloadBrief = useCallback(() => {
     if (!debate.scorecard || !activeTopic) return;
@@ -196,19 +232,21 @@ function ArenaHome() {
   }, [debate.scorecard, persona, activeTopic, names, proTotal, conTotal]);
 
   return (
-    <main className="stage-vignette flex h-screen flex-col overflow-hidden px-4 py-3">
+    <main className="stage-vignette stage-backdrop flex h-screen flex-col overflow-hidden px-4 py-3">
       <header className="relative z-20 shrink-0 text-center">
         <div className="flex items-center justify-between gap-2">
           <span className="font-display text-sm tracking-[0.3em] text-muted-foreground uppercase sm:text-base">
             {debate.usingSimulation ? "Simulation" : "Live local models"}
           </span>
-          <Link
-            to="/arena"
-            className="font-display inline-flex items-center gap-2 rounded-lg border border-border bg-background/60 px-4 py-2 text-sm tracking-[0.2em] text-foreground/85 uppercase backdrop-blur transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          >
-            <SlidersHorizontal className="size-4" aria-hidden="true" />
-            Control arena
-          </Link>
+          {/* The Control Arena link that used to live here is now the subtle
+              corner icon at the bottom of the page — a big labelled link was
+              one visitor tap away from derailing the presentation. Choosing
+              the cast is the stage-level action that earns this spot. */}
+          <CastRail
+            settings={settings}
+            disabled={debate.phase === "running" || debate.phase === "paused"}
+            onChange={updateSettings}
+          />
         </div>
 
         {!started && <h1 className="gold-text text-5xl font-bold sm:text-7xl">AI Debate Arena</h1>}
@@ -228,13 +266,14 @@ function ArenaHome() {
         )}
 
         {started && (
+          // Names and the judge are deliberately absent here: the nameplates
+          // own identity and the footer's judge chip owns the bench, so the
+          // banner is sides, numbers and round only.
           <ScoreBanner
-            names={names}
             proTotal={proTotal}
             conTotal={conTotal}
             round={round}
             totalRounds={settings.rounds}
-            personaTitle={persona.title}
             leanPercent={leanPercent(proTotal, conTotal)}
             provisional={debate.scorecard?.interim}
           />
@@ -259,6 +298,23 @@ function ArenaHome() {
           position="right"
         />
 
+        <Nameplate
+          name={names.alpha}
+          title={characterById(settings.alpha.characterId)?.title}
+          side="alpha"
+          model={debate.resolvedModels.alpha ?? settings.alpha.model}
+          lit={speaking === "alpha"}
+          position="left"
+        />
+        <Nameplate
+          name={names.beta}
+          title={characterById(settings.beta.characterId)?.title}
+          side="beta"
+          model={debate.resolvedModels.beta ?? settings.beta.model}
+          lit={speaking === "beta"}
+          position="right"
+        />
+
         {/* Covers the whole viewport rather than the stage section: the
             template is a four-panel 16:9 slide, and the section left it with
             barely half the height it needs. */}
@@ -277,7 +333,7 @@ function ArenaHome() {
           </div>
         )}
 
-        <div className="relative z-10 mx-auto flex h-full min-h-0 w-full max-w-[74%] flex-col justify-center gap-5 overflow-hidden sm:max-w-[52%]">
+        <div className="relative z-10 mx-auto flex h-full min-h-0 w-full max-w-[74%] flex-col justify-center gap-6 overflow-hidden sm:max-w-[58%]">
           <div className="sr-only" aria-live="polite">
             {runtimeLabel(state, debate.usingSimulation)}
           </div>
@@ -337,15 +393,12 @@ function ArenaHome() {
               >
                 <FileText aria-hidden="true" /> {showBrief ? "Hide brief" : "Show brief"}
               </Button>
-              <Button asChild variant="outline" size="lg" className="font-display text-base">
-                <Link to="/arena">Full scorecard</Link>
-              </Button>
               <Button size="lg" className="font-display text-base" onClick={downloadBrief}>
                 <Download aria-hidden="true" /> Download PDF
               </Button>
             </div>
           </div>
-        ) : (
+        ) : !started ? (
           <div className="mx-auto max-w-5xl">
             <h2 className="sr-only">Appoint a judge</h2>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -355,12 +408,11 @@ function ArenaHome() {
                   <button
                     key={p.id}
                     type="button"
-                    disabled={started}
                     aria-pressed={active}
                     onClick={() => pickPersona(p.id)}
-                    className={`rounded-xl border px-4 py-3 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60 ${
+                    className={`rounded-xl border px-4 py-3 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
                       active
-                        ? "border-primary bg-primary/10 shadow-[0_0_24px_-6px_var(--primary)]"
+                        ? "border-primary bg-primary/15 shadow-[0_0_24px_-6px_var(--primary)]"
                         : "border-border bg-background/40 hover:border-primary/50"
                     }`}
                   >
@@ -374,16 +426,39 @@ function ArenaHome() {
                 );
               })}
             </div>
-            {!started && (
-              <div className="mt-3 text-center">
-                <Button onClick={startDebate} size="lg" className="font-display text-lg">
-                  <Gavel aria-hidden="true" /> Begin the debate
-                </Button>
+            <div className="mt-3 text-center">
+              <Button onClick={startDebate} size="lg" className="font-display text-lg">
+                <Gavel aria-hidden="true" /> Begin the debate
+              </Button>
+            </div>
+          </div>
+        ) : (
+          // Mid-debate the picker collapses to the sitting judge: four dead
+          // cards offered a choice that could no longer be made, and the same
+          // fact was printed again in the score banner above.
+          <div className="arena-panel mx-auto flex max-w-3xl items-center justify-center gap-4 rounded-xl px-6 py-2.5">
+            <Gavel className="size-7 shrink-0 text-primary" aria-hidden="true" />
+            <div className="text-left">
+              <div className="font-display text-xl font-bold text-primary sm:text-2xl">
+                {persona.title} presiding
               </div>
-            )}
+              <div className="text-sm text-muted-foreground sm:text-base">
+                weights {criterionLabel(persona.focus)} · {persona.docFraming}
+                {debate.scorecard?.interim ? " · score is provisional" : ""}
+              </div>
+            </div>
           </div>
         )}
       </footer>
+
+      <Link
+        to="/arena"
+        aria-label="Control arena (booth operators)"
+        title="Control arena"
+        className="fixed right-1.5 bottom-1.5 z-20 rounded-md p-2 text-muted-foreground/40 transition-colors hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <SlidersHorizontal className="size-4" aria-hidden="true" />
+      </Link>
     </main>
   );
 }
