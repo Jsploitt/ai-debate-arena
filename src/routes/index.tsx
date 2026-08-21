@@ -100,7 +100,7 @@ const TOPICS_ROW_2_AR = [
 ];
 
 function ArenaHome() {
-  const { settings, updateSettings, hydrated } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const { debate, speech } = useDebateRuntime();
 
   const [topic, setTopic] = useState<string | null>(null);
@@ -122,30 +122,13 @@ function ArenaHome() {
   const betaArt = slotArt(settings.beta, "beta");
 
   /**
-   * A fresh random cast for every debate, so the booth needs no configuring:
-   * once on load, and again from `resetAll` each time the stage returns to
-   * idle. A pick made in the cast switcher afterwards overrides the draw for
-   * that debate. Kept behind refs and a short delay so a tab that is
-   * mirroring someone else's live debate never reshuffles the cast mid-run.
+   * A fresh random cast for every debate, drawn when the stage is reset for a
+   * new one (`resetAll`) — deliberately NOT on page load, so a reload keeps
+   * whatever cast is already seated. A pick made in the cast switcher
+   * afterwards overrides the draw for that debate.
    */
-  const castShuffled = useRef(false);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
-  const debateStateRef = useRef({ phase: debate.phase, hasTurns: debate.messages.length > 0 });
-  debateStateRef.current = { phase: debate.phase, hasTurns: debate.messages.length > 0 };
-
-  useEffect(() => {
-    if (!hydrated || castShuffled.current) return;
-    const timer = window.setTimeout(() => {
-      if (castShuffled.current) return;
-      castShuffled.current = true;
-      const { phase, hasTurns } = debateStateRef.current;
-      if (phase === "idle" && !hasTurns) {
-        updateSettings(randomCastPatch(settingsRef.current));
-      }
-    }, 400);
-    return () => window.clearTimeout(timer);
-  }, [hydrated, updateSettings]);
 
   // The persona is derived from the real judge weights rather than tracked
   // separately, so a hand-tuned rubric in the config panel is reflected here
