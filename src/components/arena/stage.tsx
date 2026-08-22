@@ -280,18 +280,24 @@ export function Nameplate({
 }) {
   const sideLabel = side === "alpha" ? "For the motion" : "Against the motion";
   const accent = side === "alpha" ? "text-pro" : "text-con";
+  // Compact below `sm`: at phone widths the two full plates are each wider
+  // than half the screen and buried each other. Shorter side tag, smaller
+  // name, and the archetype/model line stands down entirely.
   return (
     <div
-      className={`arena-panel absolute bottom-3 z-10 rounded-xl px-5 py-3 transition-all duration-500 ${
-        position === "left" ? "left-3 sm:left-6" : "right-3 text-right sm:right-6"
+      className={`arena-panel absolute bottom-3 z-10 max-w-[46vw] rounded-xl px-3 py-2 transition-all duration-500 sm:max-w-none sm:px-5 sm:py-3 ${
+        position === "left" ? "left-2 sm:left-6" : "right-2 text-right sm:right-6"
       } ${lit ? "border-primary/70 shadow-[0_0_36px_-8px_var(--primary)]" : ""}`}
     >
-      <div className={`font-display text-sm font-medium tracking-[0.12em] uppercase ${accent}`}>
-        {sideLabel}
+      <div
+        className={`font-display text-[10px] font-medium tracking-[0.12em] uppercase sm:text-sm ${accent}`}
+      >
+        <span className="sm:hidden">{side === "alpha" ? "For" : "Against"}</span>
+        <span className="hidden sm:inline">{sideLabel}</span>
       </div>
-      <div className="font-display text-3xl font-bold sm:text-4xl">{name}</div>
+      <div className="font-display truncate text-xl font-bold sm:text-3xl md:text-4xl">{name}</div>
       {(title || model) && (
-        <div className="mt-0.5 text-base text-muted-foreground">
+        <div className="mt-0.5 hidden text-base text-muted-foreground sm:block">
           {title}
           {title && model && <span aria-hidden="true"> · </span>}
           {model && <span className="text-muted-foreground/80">{model}</span>}
