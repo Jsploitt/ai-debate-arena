@@ -126,14 +126,39 @@ export function speakingSide(
 }
 
 /**
+ * How many turns the audience has actually been shown in full.
+ *
+ * With voice sync (or the silent paced reveal) this is the spoken count, not
+ * the generated count — the model runs several turns ahead of the stage.
+ * Without sync, a finalized message is a delivered one.
+ */
+export function deliveredTurnCount(messages: DebateMessage[], speech: SpeechView): number {
+  return speech.syncActive
+    ? messages.filter((m) => speech.revealedIds.has(m.id)).length
+    : messages.filter((m) => !m.streaming && m.content.trim()).length;
+}
+
+/**
  * Which side the stage should emphasise.
  *
  * The current speaker while someone holds the floor, and otherwise whoever
- * spoke last. Without the fallback the stage flattens between turns, which is
- * most of the wall-clock time in a real debate.
+ * the audience last HEARD — under voice sync the last generated message can
+ * be several turns ahead of the stage, and emphasising that side made the
+ * wrong bubble light up between reveals. Without the fallback the stage
+ * flattens between turns, which is most of the wall-clock time.
  */
-export function focusSide(speaking: Side | null, messages: DebateMessage[]): Side | null {
+export function focusSide(
+  speaking: Side | null,
+  messages: DebateMessage[],
+  speech: SpeechView,
+): Side | null {
   if (speaking) return speaking;
+  if (speech.syncActive) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (speech.revealedIds.has(messages[i].id)) return messages[i].side;
+    }
+    return null;
+  }
   return messages[messages.length - 1]?.side ?? null;
 }
 
@@ -207,10 +232,7 @@ export function scoredTurnsDelivered(
   messages: DebateMessage[],
   speech: SpeechView,
 ): boolean {
-  const delivered = speech.syncActive
-    ? messages.filter((m) => speech.revealedIds.has(m.id)).length
-    : messages.filter((m) => !m.streaming && m.content.trim()).length;
-  return delivered >= (scorecard.turnsScored ?? 0);
+  return deliveredTurnCount(messages, speech) >= (scorecard.turnsScored ?? 0);
 }
 
 export function leanPercent(pro: number, con: number): number {

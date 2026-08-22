@@ -216,6 +216,16 @@ export function useDebate(settings: ArenaSettings) {
   const busyRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const historyRef = useRef<Record<Side, ChatMessage[]>>({ alpha: [], beta: [] });
+  /**
+   * Finalized turns, updated synchronously the moment a turn completes.
+   *
+   * The judge must not read `messagesRef` for this: that ref mirrors React
+   * state, which only commits on the next render — so a judge invoked right
+   * after `runTurn` returned still saw the just-finished turn as streaming.
+   * Every interim therefore scored one turn behind, and the final verdict
+   * was computed with the last turn missing from the transcript entirely.
+   */
+  const transcriptRef = useRef<DebateMessage[]>([]);
 
   const log = useCallback((kind: LogKind, side: Side | "system", text: string) => {
     setLogs((prev) => {
@@ -449,6 +459,15 @@ export function useDebate(settings: ArenaSettings) {
       setStatus((prev) => ({ ...prev, [side]: "idle" }));
 
       historyRef.current[side].push({ role: "assistant", content: spoken });
+      transcriptRef.current.push({
+        id: messageId,
+        side,
+        round,
+        content: spoken,
+        reasoning: parts.reasoning,
+        streaming: false,
+        telemetry,
+      });
       const other: Side = side === "alpha" ? "beta" : "alpha";
       historyRef.current[other].push({
         role: "user",
@@ -493,7 +512,9 @@ export function useDebate(settings: ArenaSettings) {
   const judgeDebate = useCallback(
     async (interim = false, onlySide: Side | null = null) => {
       const s = settingsRef.current;
-      const transcript = messagesRef.current.filter((m) => !m.streaming && m.content.trim());
+      // transcriptRef, not messagesRef: the state mirror lags a render behind,
+      // which made every judge run score with the just-finished turn missing.
+      const transcript = transcriptRef.current.filter((m) => m.content.trim());
       if (!s.judge.enabled || transcript.length < 1 || !topicRef.current) return;
 
       const seq = ++judgeSeqRef.current;
@@ -649,6 +670,7 @@ export function useDebate(settings: ArenaSettings) {
       topicRef.current = trimmed;
       setTopic(trimmed);
       historyRef.current = { alpha: [], beta: [] };
+      transcriptRef.current = [];
       turnRef.current = 0;
       setTurnIndex(0);
       setMessages([]);
@@ -705,6 +727,7 @@ export function useDebate(settings: ArenaSettings) {
     turnRef.current = 0;
     topicRef.current = "";
     historyRef.current = { alpha: [], beta: [] };
+    transcriptRef.current = [];
     setTopic("");
     setTurnIndex(0);
     setMessages([]);

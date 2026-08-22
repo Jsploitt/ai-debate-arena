@@ -24,7 +24,7 @@ import {
   leanPercent,
   runtimeLabel,
   runtimeState,
-  scoredTurnsDelivered,
+  deliveredTurnCount,
   speakingSide,
 } from "@/lib/debate/presentation";
 import {
@@ -140,7 +140,7 @@ function ArenaHome() {
   const speaking = speakingSide(debate.status, debate.messages, speech_);
   // Between turns nobody is speaking; the last turn keeps the emphasis so the
   // stage does not flatten in the gaps.
-  const focus = focusSide(speaking, debate.messages);
+  const focus = focusSide(speaking, debate.messages, speech_);
   const state = runtimeState({
     phase: debate.phase,
     status: debate.status,
@@ -152,19 +152,29 @@ function ArenaHome() {
   });
 
   // The scoreboard the audience sees. The engine's scorecard updates as soon
-  // as a turn *generates*, which is well before the audience has heard it —
-  // so the raw card is held back until every turn it scored has actually been
-  // delivered, and points land right after the speaker finishes.
+  // as a turn *generates*, which is well before the audience has heard it.
+  // Every candidate is kept, keyed by how many turns it scored, and the one
+  // shown is the newest whose turns have all been DELIVERED on stage — so the
+  // board moves once at the end of every single turn, even when generation
+  // (and therefore judging) runs several turns ahead of the voice. Holding
+  // only the latest candidate used to skip turns: turn N's score was
+  // superseded by turn N+1's before N had finished being spoken.
   const [scorecard, setScorecard] = useState<typeof debate.scorecard>(null);
+  const scoreQueueRef = useRef(new Map<number, NonNullable<typeof debate.scorecard>>());
   useEffect(() => {
     const candidate = debate.scorecard;
     if (!candidate) {
+      scoreQueueRef.current.clear();
       setScorecard(null);
       return;
     }
-    if (scoredTurnsDelivered(candidate, debate.messages, speech_)) {
-      setScorecard(candidate);
+    scoreQueueRef.current.set(candidate.turnsScored ?? 0, candidate);
+    const delivered = deliveredTurnCount(debate.messages, speech_);
+    let bestCount = -1;
+    for (const count of scoreQueueRef.current.keys()) {
+      if (count <= delivered && count > bestCount) bestCount = count;
     }
+    if (bestCount >= 0) setScorecard(scoreQueueRef.current.get(bestCount)!);
   }, [debate.scorecard, debate.messages, speech_]);
 
   const proTotal = scorecard?.alpha.total ?? 0;
@@ -176,16 +186,18 @@ function ArenaHome() {
 
   const started = debate.phase !== "idle" || debate.messages.length > 0;
   const finished = debate.phase === "finished";
-  const hasFinalVerdict = finished && !!scorecard && !scorecard.interim;
 
-  // The brief waits for the room to fall silent. Judging finishes well ahead of
-  // the voice, so gating on the verdict alone dropped the panel over a debater
-  // who was still mid-sentence.
-  const stillSpeaking =
-    speech_.syncActive &&
-    (speech_.speakingId !== null ||
-      debate.messages.some((m) => m.content.trim() && !speech_.revealedIds.has(m.id)));
-  const briefReady = hasFinalVerdict && !stillSpeaking;
+  // The deliverable does not exist on screen until the LAST character has
+  // finished speaking: every generated turn delivered, nobody mid-reveal, and
+  // the final (non-interim) verdict released. Judging finishes well ahead of
+  // the voice, so gating on the verdict alone dropped the panel over a
+  // debater who was still mid-sentence.
+  const allDelivered =
+    debate.messages.length > 0 &&
+    deliveredTurnCount(debate.messages, speech_) >= debate.messages.length &&
+    speech_.speakingId === null;
+  const hasFinalVerdict = finished && !!scorecard && !scorecard.interim && allDelivered;
+  const briefReady = hasFinalVerdict;
 
   const rails = useMemo(
     () => (isArabic ? [TOPICS_ROW_1_AR, TOPICS_ROW_2_AR] : [TOPICS_ROW_1, TOPICS_ROW_2]),
