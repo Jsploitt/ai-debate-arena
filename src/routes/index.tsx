@@ -19,8 +19,8 @@ import { useSettings } from "@/components/arena/SettingsProvider";
 import {
   agentMood,
   cloudText,
+  currentTurnMessage,
   effectiveRound,
-  focusSide,
   leanPercent,
   runtimeLabel,
   runtimeState,
@@ -138,9 +138,6 @@ function ArenaHome() {
 
   const speech_ = speech;
   const speaking = speakingSide(debate.status, debate.messages, speech_);
-  // Between turns nobody is speaking; the last turn keeps the emphasis so the
-  // stage does not flatten in the gaps.
-  const focus = focusSide(speaking, debate.messages, speech_);
   const state = runtimeState({
     phase: debate.phase,
     status: debate.status,
@@ -181,8 +178,39 @@ function ArenaHome() {
   const conTotal = scorecard?.beta.total ?? 0;
   const round = effectiveRound(debate.turnIndex, debate.messages, speech_);
 
-  const proCloud = cloudText("alpha", debate.messages, speech_, settings.language);
-  const conCloud = cloudText("beta", debate.messages, speech_, settings.language);
+  // The stage shows ONE response at a time — the turn being delivered, or the
+  // last one the audience received. Keeping both sides' latest turns on screen
+  // together read out of order at the top of each round: pro's NEW turn sat in
+  // the upper bubble while con's turn from the PREVIOUS round stayed below it.
+  const current = currentTurnMessage(debate.messages, speech_);
+  const currentText = current
+    ? cloudText(current.side, debate.messages, speech_, settings.language)
+    : null;
+
+  // When the turn changes, the finished turn plays a short exit so old
+  // dialogue visibly gets pushed up and away rather than vanishing in place.
+  const [outgoing, setOutgoing] = useState<{
+    id: string;
+    side: "alpha" | "beta";
+    text: string;
+  } | null>(null);
+  const lastShownRef = useRef<{ id: string; side: "alpha" | "beta" } | null>(null);
+  useEffect(() => {
+    const prev = lastShownRef.current;
+    lastShownRef.current = current ? { id: current.id, side: current.side } : null;
+    if (!current) {
+      setOutgoing(null);
+      return;
+    }
+    if (prev && prev.id !== current.id) {
+      const prevMessage = debate.messages.find((m) => m.id === prev.id);
+      if (prevMessage?.content.trim()) {
+        setOutgoing({ id: prev.id, side: prev.side, text: prevMessage.content });
+      }
+    }
+    // The exit only ever fires on a turn change, not on every stream chunk.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.id]);
 
   const started = debate.phase !== "idle" || debate.messages.length > 0;
   const finished = debate.phase === "finished";
@@ -352,31 +380,42 @@ function ArenaHome() {
           </div>
         )}
 
-        <div className="relative z-10 mx-auto flex h-full min-h-0 w-full max-w-[74%] flex-col justify-center gap-6 overflow-hidden sm:max-w-[58%]">
+        <div className="relative z-10 mx-auto flex h-full min-h-0 w-full max-w-[74%] flex-col justify-center overflow-hidden sm:max-w-[58%]">
           <div className="sr-only" aria-live="polite">
             {runtimeLabel(state, debate.usingSimulation)}
           </div>
 
-          {proCloud && (
-            <CloudBubble
-              side="alpha"
-              active={speaking === "alpha"}
-              prominent={focus === "alpha"}
-              text={proCloud}
-              dir={dir}
-            />
+          {/* The previous turn on its way out, pushed up and faded while the
+              new turn pops in — decorative, so hidden from assistive tech. */}
+          {outgoing && outgoing.id !== current?.id && (
+            <div
+              key={outgoing.id}
+              aria-hidden="true"
+              className="bubble-exit pointer-events-none absolute inset-0 flex flex-col justify-center"
+              onAnimationEnd={() => setOutgoing(null)}
+            >
+              <CloudBubble
+                side={outgoing.side}
+                active={false}
+                pop={false}
+                text={outgoing.text}
+                dir={dir}
+              />
+            </div>
           )}
-          {conCloud && (
+
+          {current && currentText && (
             <CloudBubble
-              side="beta"
-              active={speaking === "beta"}
-              prominent={focus === "beta"}
-              text={conCloud}
+              key={current.id}
+              side={current.side}
+              active={speaking === current.side}
+              prominent
+              text={currentText}
               dir={dir}
             />
           )}
 
-          {!proCloud && !conCloud && started && (
+          {!currentText && started && (
             <div className="flex items-center justify-center gap-3 text-center text-xl text-muted-foreground">
               <Loader2 className="size-6 animate-spin" aria-hidden="true" />
               {runtimeLabel(state, debate.usingSimulation)}

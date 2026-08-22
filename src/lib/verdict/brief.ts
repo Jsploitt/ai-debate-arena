@@ -475,6 +475,140 @@ export async function runBriefFill(
   return second.fields ?? first.fields;
 }
 
+/**
+ * Brief fields for a simulated verdict.
+ *
+ * A simulated debate has no model endpoint behind it, so the network fill can
+ * only fail — and the failure banner is exactly what a booth demo must never
+ * show. The simulation tier therefore extends to the brief the same way it
+ * already covers the debaters and the judge: pre-written, persona-specific
+ * wording that obeys the same rules the model is prompted with (qualitative,
+ * no figures, one short line per slot). Only used when `scorecard.simulated`
+ * is set AND the real fill failed, so a reachable model always wins.
+ */
+export function simulateBriefFields({
+  persona,
+  scorecard,
+  names,
+}: {
+  persona: Persona;
+  scorecard: JudgeScorecard;
+  names: Record<Side, string>;
+}): BriefFields {
+  const author = names[briefAuthorSide(scorecard)];
+  const tie = scorecard.winner === "tie";
+
+  const SIM: Record<PersonaId, { next: string[]; reasons: string[]; watch: string[] }> = {
+    ceo: {
+      next: [
+        "Greenlight a limited pilot and name a single accountable owner.",
+        "Stand up a small cross-functional team to drive delivery.",
+        "Treat the pilot's earliest visible win as the go/no-go checkpoint.",
+        "Revisit the strategy if early signals contradict the winning case.",
+      ],
+      reasons: [
+        "The winning side tied the proposal to durable strategic advantage.",
+        "It sharpens our position against slower-moving competitors.",
+        "The risks raised were acknowledged and answered, not waved away.",
+        "Execution demands were framed realistically for the organisation.",
+      ],
+      watch: [
+        "Board alignment before any public commitment.",
+        "Whether current priorities must shift to fund this.",
+        "Strategic results will take patience; hold the course.",
+        "Department heads must be aligned before rollout begins.",
+      ],
+    },
+    cfo: {
+      next: [
+        "Route the proposal through budget approval before any spend.",
+        "Fund a contained pilot before committing further capital.",
+        "Track spend against plan on a regular review cadence.",
+        "Re-evaluate the case once early returns are visible.",
+      ],
+      reasons: [
+        "The winning argument made the stronger case on expected return.",
+        "Financial risk was addressed directly rather than dismissed.",
+        "It beats the alternative on cost discipline.",
+        "Near-term cash impact was argued to stay manageable.",
+      ],
+      watch: [
+        "Whether existing budgets can absorb this or need reallocation.",
+        "The financial assumptions behind the winning case need verification.",
+        "Timing of execution against current liquidity.",
+        "Any tax or reporting implications should be flagged early.",
+      ],
+    },
+    cmo: {
+      next: [
+        "Launch a small test campaign with the core audience first.",
+        "Pick the channel where the message lands hardest.",
+        "Go public once the story and assets are ready.",
+        "Scale up when audience response clearly validates the message.",
+      ],
+      reasons: [
+        "The winning side told the story the audience actually cares about.",
+        "It strengthens the brand narrative rather than diluting it.",
+        "It opens clear room for growth and reach.",
+        "It positions us apart from competitor messaging.",
+      ],
+      watch: [
+        "Channel mix and the priority audience for launch.",
+        "Which engagement signals will define campaign success.",
+        "Brand perception risk while the change beds in.",
+        "Timing against competitor campaigns and market moments.",
+      ],
+    },
+    cto: {
+      next: [
+        "Start with a thin working prototype of the riskiest part.",
+        "Assign a senior engineer to own the implementation.",
+        "An early version must prove the core assumption end to end.",
+        "Review reliability and security before any wider rollout.",
+      ],
+      reasons: [
+        "The winning side argued the sounder technical approach.",
+        "Scalability and reliability concerns were answered credibly.",
+        "It is the more maintainable, lower-risk path.",
+        "It fits the current stack without a disruptive rebuild.",
+      ],
+      watch: [
+        "Real engineering effort tends to exceed the debate's framing.",
+        "Dependencies on outside tools or vendors.",
+        "Testing and monitoring must be in place at launch.",
+        "A rollback path if problems surface after release.",
+      ],
+    },
+  };
+
+  const VERDICT: Record<PersonaId, { win: string; tie: string }> = {
+    ceo: {
+      win: `${author} made the sharper case — proceed, and hold the pace.`,
+      tie: "Neither side separated — proceed only with a reversible pilot step.",
+    },
+    cfo: {
+      win: `${author} carried the financial question — approve a contained spend.`,
+      tie: "The financial case is unresolved — fund discovery, not commitment.",
+    },
+    cmo: {
+      win: `${author} told the story that will land — take it to market.`,
+      tie: "No side owned the narrative — test both framings with the audience.",
+    },
+    cto: {
+      win: `${author} argued the buildable path — prototype it now.`,
+      tie: "Feasibility is still open — spike the risky part before deciding.",
+    },
+  };
+
+  const pools = SIM[persona.id];
+  return {
+    next: pools.next,
+    reasons: pools.reasons,
+    watch: pools.watch,
+    verdict: tie ? VERDICT[persona.id].tie : VERDICT[persona.id].win,
+  };
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

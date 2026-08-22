@@ -21,6 +21,7 @@ import {
   buildBriefMessages,
   renderBrief,
   runBriefFill,
+  simulateBriefFields,
   type BriefFacts,
   type BriefFields,
 } from "@/lib/verdict/brief";
@@ -33,7 +34,7 @@ import type {
   Side,
 } from "@/lib/debate/types";
 
-type Status = "idle" | "writing" | "ready" | "failed";
+type Status = "idle" | "writing" | "ready" | "simulated" | "failed";
 
 export function VerdictBrief({
   scorecard,
@@ -91,6 +92,26 @@ export function VerdictBrief({
     setStatus("writing");
     setFields(null);
 
+    // When the verdict itself is simulated there is usually no model endpoint
+    // to write the brief, so a failed fill degrades to the simulation tier's
+    // own pre-written fields instead of a failure banner. The real call is
+    // still attempted first, so a reachable model (the mock stack included)
+    // always wins.
+    const settle = (result: BriefFields | null) => {
+      if (result) {
+        setFields(result);
+        setStatus("ready");
+      } else if (scorecard.simulated) {
+        setFields(simulateBriefFields({ persona, scorecard, names }));
+        setStatus("simulated");
+      } else {
+        // A null result still renders: the template falls back to its own
+        // per-persona prompts, so the brief is never a blank document.
+        setFields(null);
+        setStatus("failed");
+      }
+    };
+
     const write = async () => {
       try {
         const chat = buildBriefMessages({
@@ -104,12 +125,9 @@ export function VerdictBrief({
         });
         const result = await runBriefFill(settings[authorSide], chat, controller.signal);
         if (controller.signal.aborted) return;
-        // A null result still renders: the template falls back to its own
-        // per-persona prompts, so the brief is never a blank document.
-        setFields(result);
-        setStatus(result ? "ready" : "failed");
+        settle(result);
       } catch {
-        if (!controller.signal.aborted) setStatus("failed");
+        if (!controller.signal.aborted) settle(null);
       }
     };
 
@@ -142,7 +160,9 @@ export function VerdictBrief({
               ? `${names[authorSide]} is writing the brief…`
               : status === "failed"
                 ? `${names[authorSide]} could not complete the brief — showing the template's own wording.`
-                : `${scorecard.winner === "tie" ? "Draw — brief" : "Brief"} written by ${names[authorSide]}. Scores are the ${persona.title}'s own.`}
+                : status === "simulated"
+                  ? `Simulated brief — in the live arena, ${names[authorSide]}'s own model writes this.`
+                  : `${scorecard.winner === "tie" ? "Draw — brief" : "Brief"} written by ${names[authorSide]}. Scores are the ${persona.title}'s own.`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

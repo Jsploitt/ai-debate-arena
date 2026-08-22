@@ -163,6 +163,35 @@ export function focusSide(
 }
 
 /**
+ * The single turn the stage should be showing right now.
+ *
+ * The stage shows one response at a time — the turn being spoken, or failing
+ * that the last one the audience actually received. Showing both sides' latest
+ * turns together read out of order: at the top of a round, pro's NEW turn sat
+ * in the upper bubble above con's turn from the PREVIOUS round.
+ */
+export function currentTurnMessage(
+  messages: DebateMessage[],
+  speech: SpeechView,
+): DebateMessage | null {
+  if (speech.syncActive) {
+    const speaking = messages.find((m) => m.id === speech.speakingId);
+    if (speaking) return speaking;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (speech.revealedIds.has(messages[i].id)) return messages[i];
+    }
+    return null;
+  }
+  // Without sync the newest words on screen are the newest generated ones. A
+  // just-opened turn with no content yet is skipped so the previous response
+  // holds the stage while the next speaker "thinks".
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].content.trim()) return messages[i];
+  }
+  return null;
+}
+
+/**
  * The text to show in a side's speech cloud: its most recent turn, truncated
  * to whatever the voice has actually read aloud when sync is active.
  */

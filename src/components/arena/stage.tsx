@@ -73,6 +73,7 @@ export function CloudBubble({
   side,
   active,
   prominent,
+  pop = true,
   text,
   dir = "ltr",
 }: {
@@ -83,6 +84,12 @@ export function CloudBubble({
    * reads as the focus during the gap between turns, when nobody is speaking.
    */
   prominent?: boolean;
+  /**
+   * Play the pop-in entrance. Off for a bubble that is already on its way out
+   * — replaying the entrance under the exit animation made the departing turn
+   * fade IN while it rose off the stage.
+   */
+  pop?: boolean;
   text: string;
   dir?: "ltr" | "rtl";
 }) {
@@ -97,7 +104,7 @@ export function CloudBubble({
       : "scale-95 opacity-70";
   return (
     <div
-      className={`bubble-pop cloud-bubble px-7 py-5 transition-all duration-500 ${
+      className={`${pop ? "bubble-pop " : ""}cloud-bubble px-7 py-5 transition-all duration-500 ${
         side === "alpha" ? "cloud-tail-left self-start" : "cloud-tail-right self-end"
       } ${emphasis}`}
     >
