@@ -63,14 +63,17 @@ export function TopicRail({
  *
  * An earlier version scaled the type to the text length, which meant a turn
  * started huge and shrank as it streamed in — distracting on a stage. The size
- * is fixed instead, chosen to fit two full turns in the column at 1440x900.
+ * is fixed per viewport instead: a clamp tuned so a full 50-word turn (the
+ * engine's hard limit) still fits two-up in the column, while the text reads
+ * from the back of a booth crowd rather than only at arm's length.
  */
-const BUBBLE_TEXT = "text-xl";
+const BUBBLE_TEXT = "text-[clamp(1.4rem,3.1vh,2.25rem)]";
 
 export function CloudBubble({
   side,
   active,
   prominent,
+  pop = true,
   text,
   dir = "ltr",
 }: {
@@ -81,14 +84,29 @@ export function CloudBubble({
    * reads as the focus during the gap between turns, when nobody is speaking.
    */
   prominent?: boolean;
+  /**
+   * Play the pop-in entrance. Off for a bubble that is already on its way out
+   * — replaying the entrance under the exit animation made the departing turn
+   * fade IN while it rose off the stage.
+   */
+  pop?: boolean;
   text: string;
   dir?: "ltr" | "rtl";
 }) {
+  // The last turn spoken keeps full contrast during the gap between speakers
+  // (`prominent`); only a turn that has actually been replaced recedes. Words
+  // on a stage never drop below ~70% opacity — a half-faded argument is
+  // unreadable from the room.
+  const emphasis = active
+    ? "scale-100 opacity-100"
+    : prominent
+      ? "scale-[0.98] opacity-100"
+      : "scale-95 opacity-70";
   return (
     <div
-      className={`bubble-pop cloud-bubble px-6 py-4 transition-all duration-500 ${
+      className={`${pop ? "bubble-pop " : ""}cloud-bubble px-7 py-5 transition-all duration-500 ${
         side === "alpha" ? "cloud-tail-left self-start" : "cloud-tail-right self-end"
-      } ${active ? "scale-100 opacity-100" : "scale-95 opacity-45"}`}
+      } ${emphasis}`}
     >
       <p dir={dir} className={`leading-snug font-medium ${BUBBLE_TEXT}`}>
         {text}
@@ -168,22 +186,54 @@ export function AgentStage({
    */
   flip?: boolean;
 }) {
-  const height = compact ? "h-[22vh] sm:h-[30vh]" : "h-[46vh] sm:h-[60vh]";
+  const height = compact ? "h-[22vh] sm:h-[30vh]" : "h-[44vh] sm:h-[58vh]";
+  // On the presentation stage the beam overshoots the top of the section by
+  // 50vh so it visibly starts at the top of the *screen* — the section begins
+  // below the header, and a beam that materialised mid-air read as a glitch.
+  // The /arena band shares its viewport with panels above it, so its compact
+  // beam stays confined to the band.
+  //
+  // The figures stand on the stage-horizon floor strip (see `/`), not on the
+  // viewport edge: `pb-[4.5vh]` lifts the feet onto the line, and the beam
+  // ends where the feet are rather than running past them.
+  const beamSpan = compact ? "inset-y-0" : "-top-[50vh] bottom-[4vh]";
+  const beamWidth = compact ? "w-[200px] sm:w-[260px]" : "w-[240px] sm:w-[370px]";
   return (
     // Spans the full height of the stage section so the beam can start at the
     // very top of it; the figure is pinned to the bottom by `justify-end`.
     <div
       className={`pointer-events-none absolute inset-y-0 flex flex-col justify-end ${
-        position === "left" ? "left-0" : "right-0"
+        compact
+          ? position === "left"
+            ? "left-0"
+            : "right-0"
+          : position === "left"
+            ? "left-[1.5vw] pb-[4.5vh]"
+            : "right-[1.5vw] pb-[4.5vh]"
       }`}
     >
       <div
-        className={`pointer-events-none absolute inset-y-0 left-1/2 w-[200px] -translate-x-1/2 transition-opacity duration-700 sm:w-[260px] ${
+        className={`pointer-events-none absolute ${beamSpan} left-1/2 ${beamWidth} -translate-x-1/2 transition-opacity duration-700 ${
           lit ? "opacity-100" : "opacity-0"
         }`}
       >
         <div className="spotlight-beam h-full w-full" />
       </div>
+      {!compact && (
+        // The light pool under the figure. Faintly present the whole time so
+        // the character always reads as standing ON something, and brighter
+        // under the live speaker. Above the vignette (z-2), which otherwise
+        // swallowed it at the darkened stage edges.
+        <div
+          aria-hidden="true"
+          // Top edge at the feet: stage-floor's ellipse is centred on the top
+          // of its element, so the glow lands at the feet and washes down the
+          // floor strip.
+          className={`stage-floor pointer-events-none absolute bottom-0 left-1/2 z-[2] h-[5.5vh] w-[140%] -translate-x-1/2 transition-opacity duration-700 ${
+            lit ? "opacity-100" : "opacity-40"
+          }`}
+        />
+      )}
       <img
         src={img}
         alt=""
@@ -210,6 +260,60 @@ export function AgentStage({
   );
 }
 
+/**
+ * The identity card at each debater's feet: who they are, which side they
+ * hold, and the model actually speaking for them.
+ *
+ * This is the single home for identity on the presentation stage — the score
+ * banner deliberately shows sides and numbers only, so the same fact is never
+ * printed twice on one screen.
+ */
+export function Nameplate({
+  name,
+  title,
+  side,
+  model,
+  lit,
+  position,
+}: {
+  name: string;
+  /** The character's archetype line; omitted when no character is cast. */
+  title?: string;
+  side: "alpha" | "beta";
+  /** The model serving this slot, as resolved by the runtime. */
+  model?: string | null;
+  lit: boolean;
+  position: "left" | "right";
+}) {
+  const sideLabel = side === "alpha" ? "For the motion" : "Against the motion";
+  const accent = side === "alpha" ? "text-pro" : "text-con";
+  // Compact below `sm`: at phone widths the two full plates are each wider
+  // than half the screen and buried each other. Shorter side tag, smaller
+  // name, and the archetype/model line stands down entirely.
+  return (
+    <div
+      className={`arena-panel absolute bottom-3 z-10 max-w-[46vw] rounded-xl px-3 py-2 transition-all duration-500 sm:max-w-none sm:px-5 sm:py-3 ${
+        position === "left" ? "left-2 sm:left-6" : "right-2 text-right sm:right-6"
+      } ${lit ? "border-primary/70 shadow-[0_0_36px_-8px_var(--primary)]" : ""}`}
+    >
+      <div
+        className={`font-display text-[10px] font-medium tracking-[0.12em] uppercase sm:text-sm ${accent}`}
+      >
+        <span className="sm:hidden">{side === "alpha" ? "For" : "Against"}</span>
+        <span className="hidden sm:inline">{sideLabel}</span>
+      </div>
+      <div className="font-display truncate text-xl font-bold sm:text-3xl md:text-4xl">{name}</div>
+      {(title || model) && (
+        <div className="mt-0.5 hidden text-base text-muted-foreground sm:block">
+          {title}
+          {title && model && <span aria-hidden="true"> · </span>}
+          {model && <span className="text-muted-foreground/80">{model}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ScoreSide({
   label,
   name,
@@ -219,7 +323,8 @@ export function ScoreSide({
   compact,
 }: {
   label: string;
-  name: string;
+  /** Shown after the label on /arena; the presentation stage omits it — the nameplates carry names. */
+  name?: string;
   score: number;
   color: string;
   align?: "left" | "right";
@@ -228,11 +333,12 @@ export function ScoreSide({
   return (
     <div className={align === "right" ? "text-right" : ""}>
       <div
-        className={`font-display tracking-[0.3em] uppercase ${color} ${
-          compact ? "text-[10px]" : "text-sm sm:text-base"
+        className={`font-display uppercase ${color} ${
+          compact ? "text-[10px] tracking-[0.3em]" : "text-base tracking-[0.14em] sm:text-lg"
         }`}
       >
-        {label} · {name}
+        {label}
+        {name ? ` · ${name}` : ""}
       </div>
       <div className={`font-display font-bold ${compact ? "text-2xl" : "text-5xl sm:text-6xl"}`}>
         {score.toFixed(1)}
@@ -253,17 +359,23 @@ export function ScoreBanner({
   provisional,
   compact,
 }: {
-  names: { alpha: string; beta: string };
+  /**
+   * Omitted on the presentation stage, where the nameplates own identity and
+   * the banner shows sides and numbers only. /arena passes names.
+   */
+  names?: { alpha: string; beta: string };
   proTotal: number;
   conTotal: number;
   round: number;
   totalRounds: number;
-  personaTitle: string;
+  /** Omitted on the presentation stage — the judge chip in the footer owns it there. */
+  personaTitle?: string;
   leanPercent: number;
   provisional?: boolean;
   /** The tighter original scale, for the /arena stage band. */
   compact?: boolean;
 }) {
+  const current = Math.min(Math.max(round, 1), totalRounds);
   return (
     <div
       className={`arena-panel mx-auto mt-2 flex items-center justify-between rounded-xl ${
@@ -271,27 +383,35 @@ export function ScoreBanner({
       }`}
     >
       <ScoreSide
-        label="Agent Pro"
-        name={names.alpha}
+        label={names ? "Agent Pro" : "For"}
+        name={names?.alpha}
         score={proTotal}
         color="text-pro"
         compact={compact}
       />
       <div className="text-center">
         <div
-          className={`font-display tracking-[0.25em] text-muted-foreground uppercase ${
-            compact ? "text-[10px]" : "text-base sm:text-lg"
+          className={`font-display text-muted-foreground uppercase ${
+            compact ? "text-[10px] tracking-[0.25em]" : "text-xl tracking-[0.08em] sm:text-2xl"
           }`}
         >
-          Round {Math.min(Math.max(round, 1), totalRounds)} / {totalRounds} · {personaTitle} judging
+          Round {current} / {totalRounds}
+          {personaTitle ? ` · ${personaTitle} judging` : ""}
           {provisional ? " · provisional" : ""}
         </div>
         <div className={`flex justify-center ${compact ? "mt-1 gap-1.5" : "mt-2.5 gap-2.5"}`}>
+          {/* The round in progress is lit, not just the completed ones —
+              otherwise round 1 shows a row of dead pips at exactly the moment
+              the audience is orienting themselves. */}
           {Array.from({ length: totalRounds }, (_, i) => i + 1).map((n) => (
             <span
               key={n}
               className={`rounded-full ${compact ? "h-1.5 w-10" : "h-3 w-20"} ${
-                round > n ? "bg-primary" : "bg-muted"
+                n < current
+                  ? "bg-primary/70"
+                  : n === current
+                    ? "bg-primary shadow-[0_0_12px_2px_var(--primary)]"
+                    : "bg-muted"
               }`}
             />
           ))}
@@ -299,8 +419,8 @@ export function ScoreBanner({
         <LeanBar pro={proTotal} con={conTotal} percent={leanPercent} compact={compact} />
       </div>
       <ScoreSide
-        label="Agent Con"
-        name={names.beta}
+        label={names ? "Agent Con" : "Against"}
+        name={names?.beta}
         score={conTotal}
         color="text-con"
         align="right"

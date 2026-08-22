@@ -127,6 +127,32 @@ async function handleOllama(req: Request, port: keyof typeof PORTS): Promise<Res
       });
     }
 
+    // The verdict brief hits the winning *debater's* endpoint with a JSON
+    // schema in `format` (Ollama structured outputs). Recognise it by that
+    // field and answer with the brief fixture, so the brief path is
+    // exercisable end-to-end without a GPU. `?judge=malformed` degrades it to
+    // prose, which exercises the brief's retry-then-fallback chain instead.
+    let briefRequest = false;
+    try {
+      const body = (await req.clone().json()) as { format?: unknown };
+      briefRequest = body.format !== undefined && body.format !== null;
+    } catch {
+      /* non-JSON body — not a brief request */
+    }
+    if (briefRequest && judge !== "malformed") {
+      const brief = await fixture("brief-valid.json");
+      const line = JSON.stringify({
+        model,
+        message: { role: "assistant", content: brief },
+        done: true,
+        eval_count: 180,
+        prompt_eval_count: 700,
+      });
+      return new Response(replay(line, { delayMs: fail === "slow" ? 5000 : 0 }), {
+        headers: headers({ "content-type": "application/x-ndjson" }, fail),
+      });
+    }
+
     const name =
       format === "sse"
         ? "openai-sse.txt"

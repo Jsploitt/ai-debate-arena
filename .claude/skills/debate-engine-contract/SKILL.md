@@ -62,7 +62,17 @@ Behaviour a view must account for:
 - `start()` clears all state, then runs `settings.rounds * 2` turns.
 - An **interim** `judgeDebate(true)` fires after every completed turn; a final one at the end. So
   `scorecard` is populated and moving _during_ the debate, and `scorecard.interim` distinguishes
-  provisional from final.
+  provisional from final. `scorecard.turnsScored` says how many turns that card covers — views
+  that pace score reveals (the presentation stage holds each card until its turns have been
+  delivered on stage) key off it.
+- Judge runs are **serialized, never cancelled**: one job at a time, with the newest request
+  waiting in a single pending slot (a final replaces a pending interim, never the reverse; a
+  collapsed pending job re-snapshots the transcript when it runs). On slow judge models interims
+  coalesce rather than dying — the board lags, it does not stall. Only `start()`/`reset()`
+  invalidate outstanding jobs.
+- The judge reads a synchronously-updated transcript ref, not React state — state commits a
+  render late, which used to make every judge run miss the just-finished turn (and the final
+  verdict miss the last turn of the debate).
 - Any live-stream error auto-falls back to simulation **for the rest of the session** and flips
   `usingSimulation`.
 - `<think>` blocks are extracted into `DebateMessage.reasoning` by `splitReasoning`.

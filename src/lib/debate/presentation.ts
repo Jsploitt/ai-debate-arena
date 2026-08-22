@@ -9,7 +9,7 @@
  * Nothing here may import React, touch the DOM, or read browser globals.
  */
 
-import type { DebateMessage, Side, SpeakerStatus } from "./types";
+import type { DebateMessage, JudgeScorecard, Side, SpeakerStatus } from "./types";
 import type { Phase } from "./useDebate";
 
 /** The slice of `useSpeech`'s return value these helpers depend on. */
@@ -126,15 +126,69 @@ export function speakingSide(
 }
 
 /**
+ * How many turns the audience has actually been shown in full.
+ *
+ * With voice sync (or the silent paced reveal) this is the spoken count, not
+ * the generated count — the model runs several turns ahead of the stage.
+ * Without sync, a finalized message is a delivered one.
+ */
+export function deliveredTurnCount(messages: DebateMessage[], speech: SpeechView): number {
+  return speech.syncActive
+    ? messages.filter((m) => speech.revealedIds.has(m.id)).length
+    : messages.filter((m) => !m.streaming && m.content.trim()).length;
+}
+
+/**
  * Which side the stage should emphasise.
  *
  * The current speaker while someone holds the floor, and otherwise whoever
- * spoke last. Without the fallback the stage flattens between turns, which is
- * most of the wall-clock time in a real debate.
+ * the audience last HEARD — under voice sync the last generated message can
+ * be several turns ahead of the stage, and emphasising that side made the
+ * wrong bubble light up between reveals. Without the fallback the stage
+ * flattens between turns, which is most of the wall-clock time.
  */
-export function focusSide(speaking: Side | null, messages: DebateMessage[]): Side | null {
+export function focusSide(
+  speaking: Side | null,
+  messages: DebateMessage[],
+  speech: SpeechView,
+): Side | null {
   if (speaking) return speaking;
+  if (speech.syncActive) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (speech.revealedIds.has(messages[i].id)) return messages[i].side;
+    }
+    return null;
+  }
   return messages[messages.length - 1]?.side ?? null;
+}
+
+/**
+ * The single turn the stage should be showing right now.
+ *
+ * The stage shows one response at a time — the turn being spoken, or failing
+ * that the last one the audience actually received. Showing both sides' latest
+ * turns together read out of order: at the top of a round, pro's NEW turn sat
+ * in the upper bubble above con's turn from the PREVIOUS round.
+ */
+export function currentTurnMessage(
+  messages: DebateMessage[],
+  speech: SpeechView,
+): DebateMessage | null {
+  if (speech.syncActive) {
+    const speaking = messages.find((m) => m.id === speech.speakingId);
+    if (speaking) return speaking;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (speech.revealedIds.has(messages[i].id)) return messages[i];
+    }
+    return null;
+  }
+  // Without sync the newest words on screen are the newest generated ones. A
+  // just-opened turn with no content yet is skipped so the previous response
+  // holds the stage while the next speaker "thinks".
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].content.trim()) return messages[i];
+  }
+  return null;
 }
 
 /**
@@ -191,6 +245,25 @@ export function agentMood(
  * Clamped away from the extremes so the dot never sits on the track's edge,
  * and centred when there is nothing to compare yet.
  */
+/**
+ * Whether every turn a scorecard covers has finished being delivered to the
+ * audience.
+ *
+ * The judge scores as soon as a turn *generates*, which with voice sync (or
+ * the silent paced reveal) is long before the audience has heard it. Showing
+ * that scorecard immediately moves the numbers while the character is still
+ * mid-sentence, which reads as the judge interrupting. Views hold the
+ * previous scorecard until this returns true, so points land right after the
+ * turn ends — in live and simulation mode alike.
+ */
+export function scoredTurnsDelivered(
+  scorecard: JudgeScorecard,
+  messages: DebateMessage[],
+  speech: SpeechView,
+): boolean {
+  return deliveredTurnCount(messages, speech) >= (scorecard.turnsScored ?? 0);
+}
+
 export function leanPercent(pro: number, con: number): number {
   const total = pro + con;
   if (total <= 0) return 50;

@@ -1,22 +1,30 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { FileText, Gavel, Download, Loader2, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { AgentStage, CloudBubble, ScoreBanner, TopicRail } from "@/components/arena/stage";
-import { slotArt } from "@/lib/characters";
+import {
+  AgentStage,
+  CloudBubble,
+  Nameplate,
+  ScoreBanner,
+  TopicRail,
+} from "@/components/arena/stage";
+import { CastRail } from "@/components/arena/CastRail";
+import { characterById, randomCastPatch, slotArt } from "@/lib/characters";
 import { useDebateRuntime } from "@/components/arena/DebateRuntimeProvider";
 import { VerdictBrief } from "@/components/arena/VerdictBrief";
 import { useSettings } from "@/components/arena/SettingsProvider";
 import {
   agentMood,
   cloudText,
+  currentTurnMessage,
   effectiveRound,
-  focusSide,
   leanPercent,
   runtimeLabel,
   runtimeState,
+  deliveredTurnCount,
   speakingSide,
 } from "@/lib/debate/presentation";
 import {
@@ -113,6 +121,15 @@ function ArenaHome() {
   const alphaArt = slotArt(settings.alpha, "alpha");
   const betaArt = slotArt(settings.beta, "beta");
 
+  /**
+   * A fresh random cast for every debate, drawn when the stage is reset for a
+   * new one (`resetAll`) — deliberately NOT on page load, so a reload keeps
+   * whatever cast is already seated. A pick made in the cast switcher
+   * afterwards overrides the draw for that debate.
+   */
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
   // The persona is derived from the real judge weights rather than tracked
   // separately, so a hand-tuned rubric in the config panel is reflected here
   // instead of being silently overwritten by a stale local copy.
@@ -121,9 +138,6 @@ function ArenaHome() {
 
   const speech_ = speech;
   const speaking = speakingSide(debate.status, debate.messages, speech_);
-  // Between turns nobody is speaking; the last turn keeps the emphasis so the
-  // stage does not flatten in the gaps.
-  const focus = focusSide(speaking, debate.messages);
   const state = runtimeState({
     phase: debate.phase,
     status: debate.status,
@@ -134,25 +148,84 @@ function ArenaHome() {
     speech: speech_,
   });
 
-  const proTotal = debate.scorecard?.alpha.total ?? 0;
-  const conTotal = debate.scorecard?.beta.total ?? 0;
+  // The scoreboard the audience sees. The engine's scorecard updates as soon
+  // as a turn *generates*, which is well before the audience has heard it.
+  // Every candidate is kept, keyed by how many turns it scored, and the one
+  // shown is the newest whose turns have all been DELIVERED on stage — so the
+  // board moves once at the end of every single turn, even when generation
+  // (and therefore judging) runs several turns ahead of the voice. Holding
+  // only the latest candidate used to skip turns: turn N's score was
+  // superseded by turn N+1's before N had finished being spoken.
+  const [scorecard, setScorecard] = useState<typeof debate.scorecard>(null);
+  const scoreQueueRef = useRef(new Map<number, NonNullable<typeof debate.scorecard>>());
+  useEffect(() => {
+    const candidate = debate.scorecard;
+    if (!candidate) {
+      scoreQueueRef.current.clear();
+      setScorecard(null);
+      return;
+    }
+    scoreQueueRef.current.set(candidate.turnsScored ?? 0, candidate);
+    const delivered = deliveredTurnCount(debate.messages, speech_);
+    let bestCount = -1;
+    for (const count of scoreQueueRef.current.keys()) {
+      if (count <= delivered && count > bestCount) bestCount = count;
+    }
+    if (bestCount >= 0) setScorecard(scoreQueueRef.current.get(bestCount)!);
+  }, [debate.scorecard, debate.messages, speech_]);
+
+  const proTotal = scorecard?.alpha.total ?? 0;
+  const conTotal = scorecard?.beta.total ?? 0;
   const round = effectiveRound(debate.turnIndex, debate.messages, speech_);
 
-  const proCloud = cloudText("alpha", debate.messages, speech_, settings.language);
-  const conCloud = cloudText("beta", debate.messages, speech_, settings.language);
+  // The stage shows ONE response at a time — the turn being delivered, or the
+  // last one the audience received. Keeping both sides' latest turns on screen
+  // together read out of order at the top of each round: pro's NEW turn sat in
+  // the upper bubble while con's turn from the PREVIOUS round stayed below it.
+  const current = currentTurnMessage(debate.messages, speech_);
+  const currentText = current
+    ? cloudText(current.side, debate.messages, speech_, settings.language)
+    : null;
+
+  // When the turn changes, the finished turn plays a short exit so old
+  // dialogue visibly gets pushed up and away rather than vanishing in place.
+  const [outgoing, setOutgoing] = useState<{
+    id: string;
+    side: "alpha" | "beta";
+    text: string;
+  } | null>(null);
+  const lastShownRef = useRef<{ id: string; side: "alpha" | "beta" } | null>(null);
+  useEffect(() => {
+    const prev = lastShownRef.current;
+    lastShownRef.current = current ? { id: current.id, side: current.side } : null;
+    if (!current) {
+      setOutgoing(null);
+      return;
+    }
+    if (prev && prev.id !== current.id) {
+      const prevMessage = debate.messages.find((m) => m.id === prev.id);
+      if (prevMessage?.content.trim()) {
+        setOutgoing({ id: prev.id, side: prev.side, text: prevMessage.content });
+      }
+    }
+    // The exit only ever fires on a turn change, not on every stream chunk.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.id]);
 
   const started = debate.phase !== "idle" || debate.messages.length > 0;
   const finished = debate.phase === "finished";
-  const hasFinalVerdict = finished && !!debate.scorecard && !debate.scorecard.interim;
 
-  // The brief waits for the room to fall silent. Judging finishes well ahead of
-  // the voice, so gating on the verdict alone dropped the panel over a debater
-  // who was still mid-sentence.
-  const stillSpeaking =
-    speech_.syncActive &&
-    (speech_.speakingId !== null ||
-      debate.messages.some((m) => m.content.trim() && !speech_.revealedIds.has(m.id)));
-  const briefReady = hasFinalVerdict && !stillSpeaking;
+  // The deliverable does not exist on screen until the LAST character has
+  // finished speaking: every generated turn delivered, nobody mid-reveal, and
+  // the final (non-interim) verdict released. Judging finishes well ahead of
+  // the voice, so gating on the verdict alone dropped the panel over a
+  // debater who was still mid-sentence.
+  const allDelivered =
+    debate.messages.length > 0 &&
+    deliveredTurnCount(debate.messages, speech_) >= debate.messages.length &&
+    speech_.speakingId === null;
+  const hasFinalVerdict = finished && !!scorecard && !scorecard.interim && allDelivered;
+  const briefReady = hasFinalVerdict;
 
   const rails = useMemo(
     () => (isArabic ? [TOPICS_ROW_1_AR, TOPICS_ROW_2_AR] : [TOPICS_ROW_1, TOPICS_ROW_2]),
@@ -180,35 +253,40 @@ function ArenaHome() {
     speech.stop();
     setTopic(null);
     setShowBrief(true);
-  }, [debate, speech]);
+    // The next debate gets a fresh pairing by default; picking in the cast
+    // switcher afterwards still overrides it.
+    updateSettings(randomCastPatch(settingsRef.current));
+  }, [debate, speech, updateSettings]);
 
   const downloadBrief = useCallback(() => {
-    if (!debate.scorecard || !activeTopic) return;
-    const doc = verdictDocFromScorecard(debate.scorecard, persona, activeTopic, names);
+    if (!scorecard || !activeTopic) return;
+    const doc = verdictDocFromScorecard(scorecard, persona, activeTopic, names);
     downloadVerdictPdf(
       doc,
       persona,
       activeTopic,
-      winnerLabel(debate.scorecard.winner, names),
+      winnerLabel(scorecard.winner, names),
       proTotal,
       conTotal,
     );
-  }, [debate.scorecard, persona, activeTopic, names, proTotal, conTotal]);
+  }, [scorecard, persona, activeTopic, names, proTotal, conTotal]);
 
   return (
-    <main className="stage-vignette flex h-screen flex-col overflow-hidden px-4 py-3">
+    <main className="stage-vignette stage-backdrop flex h-screen flex-col overflow-hidden px-4 py-3">
       <header className="relative z-20 shrink-0 text-center">
         <div className="flex items-center justify-between gap-2">
           <span className="font-display text-sm tracking-[0.3em] text-muted-foreground uppercase sm:text-base">
             {debate.usingSimulation ? "Simulation" : "Live local models"}
           </span>
-          <Link
-            to="/arena"
-            className="font-display inline-flex items-center gap-2 rounded-lg border border-border bg-background/60 px-4 py-2 text-sm tracking-[0.2em] text-foreground/85 uppercase backdrop-blur transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          >
-            <SlidersHorizontal className="size-4" aria-hidden="true" />
-            Control arena
-          </Link>
+          {/* The Control Arena link that used to live here is now the subtle
+              corner icon at the bottom of the page — a big labelled link was
+              one visitor tap away from derailing the presentation. Choosing
+              the cast is the stage-level action that earns this spot. */}
+          <CastRail
+            settings={settings}
+            disabled={debate.phase === "running" || debate.phase === "paused"}
+            onChange={updateSettings}
+          />
         </div>
 
         {!started && <h1 className="gold-text text-5xl font-bold sm:text-7xl">AI Debate Arena</h1>}
@@ -228,20 +306,28 @@ function ArenaHome() {
         )}
 
         {started && (
+          // Names and the judge are deliberately absent here: the nameplates
+          // own identity and the footer's judge chip owns the bench, so the
+          // banner is sides, numbers and round only.
           <ScoreBanner
-            names={names}
             proTotal={proTotal}
             conTotal={conTotal}
             round={round}
             totalRounds={settings.rounds}
-            personaTitle={persona.title}
             leanPercent={leanPercent(proTotal, conTotal)}
-            provisional={debate.scorecard?.interim}
+            provisional={scorecard?.interim}
           />
         )}
       </header>
 
       <section className="relative min-h-0 flex-1" aria-label="Debate stage">
+        {/* The floor: a lit edge at the figures' feet with a wash below it.
+            AgentStage lifts the figures onto this line, so the strip beneath
+            is visible stage floor rather than empty margin. */}
+        <div
+          aria-hidden="true"
+          className="stage-horizon pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[4.5vh]"
+        />
         <AgentStage
           label={`${names.alpha}, arguing for the motion`}
           img={alphaArt.art[agentMood("alpha", speaking, proTotal, conTotal)]}
@@ -259,13 +345,30 @@ function ArenaHome() {
           position="right"
         />
 
+        <Nameplate
+          name={names.alpha}
+          title={characterById(settings.alpha.characterId)?.title}
+          side="alpha"
+          model={debate.resolvedModels.alpha ?? settings.alpha.model}
+          lit={speaking === "alpha"}
+          position="left"
+        />
+        <Nameplate
+          name={names.beta}
+          title={characterById(settings.beta.characterId)?.title}
+          side="beta"
+          model={debate.resolvedModels.beta ?? settings.beta.model}
+          lit={speaking === "beta"}
+          position="right"
+        />
+
         {/* Covers the whole viewport rather than the stage section: the
             template is a four-panel 16:9 slide, and the section left it with
             barely half the height it needs. */}
         {showBrief && briefReady && (
           <div className="fixed inset-0 z-30 bg-background/85 p-4 backdrop-blur-sm sm:p-8">
             <VerdictBrief
-              scorecard={debate.scorecard!}
+              scorecard={scorecard!}
               persona={persona}
               topic={activeTopic!}
               names={names}
@@ -277,31 +380,42 @@ function ArenaHome() {
           </div>
         )}
 
-        <div className="relative z-10 mx-auto flex h-full min-h-0 w-full max-w-[74%] flex-col justify-center gap-5 overflow-hidden sm:max-w-[52%]">
+        <div className="relative z-10 mx-auto flex h-full min-h-0 w-full max-w-[74%] flex-col justify-center overflow-hidden sm:max-w-[58%]">
           <div className="sr-only" aria-live="polite">
             {runtimeLabel(state, debate.usingSimulation)}
           </div>
 
-          {proCloud && (
-            <CloudBubble
-              side="alpha"
-              active={speaking === "alpha"}
-              prominent={focus === "alpha"}
-              text={proCloud}
-              dir={dir}
-            />
+          {/* The previous turn on its way out, pushed up and faded while the
+              new turn pops in — decorative, so hidden from assistive tech. */}
+          {outgoing && outgoing.id !== current?.id && (
+            <div
+              key={outgoing.id}
+              aria-hidden="true"
+              className="bubble-exit pointer-events-none absolute inset-0 flex flex-col justify-center"
+              onAnimationEnd={() => setOutgoing(null)}
+            >
+              <CloudBubble
+                side={outgoing.side}
+                active={false}
+                pop={false}
+                text={outgoing.text}
+                dir={dir}
+              />
+            </div>
           )}
-          {conCloud && (
+
+          {current && currentText && (
             <CloudBubble
-              side="beta"
-              active={speaking === "beta"}
-              prominent={focus === "beta"}
-              text={conCloud}
+              key={current.id}
+              side={current.side}
+              active={speaking === current.side}
+              prominent
+              text={currentText}
               dir={dir}
             />
           )}
 
-          {!proCloud && !conCloud && started && (
+          {!currentText && started && (
             <div className="flex items-center justify-center gap-3 text-center text-xl text-muted-foreground">
               <Loader2 className="size-6 animate-spin" aria-hidden="true" />
               {runtimeLabel(state, debate.usingSimulation)}
@@ -324,8 +438,8 @@ function ArenaHome() {
               </div>
               <p dir={dir} className="mt-1 text-xl text-foreground/90">
                 Winner:{" "}
-                <span className="text-primary">{winnerLabel(debate.scorecard!.winner, names)}</span>{" "}
-                — {debate.scorecard!.verdict}
+                <span className="text-primary">{winnerLabel(scorecard!.winner, names)}</span> —{" "}
+                {scorecard!.verdict}
               </p>
             </div>
             <div className="flex gap-2">
@@ -337,15 +451,12 @@ function ArenaHome() {
               >
                 <FileText aria-hidden="true" /> {showBrief ? "Hide brief" : "Show brief"}
               </Button>
-              <Button asChild variant="outline" size="lg" className="font-display text-base">
-                <Link to="/arena">Full scorecard</Link>
-              </Button>
               <Button size="lg" className="font-display text-base" onClick={downloadBrief}>
                 <Download aria-hidden="true" /> Download PDF
               </Button>
             </div>
           </div>
-        ) : (
+        ) : !started ? (
           <div className="mx-auto max-w-5xl">
             <h2 className="sr-only">Appoint a judge</h2>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -355,12 +466,11 @@ function ArenaHome() {
                   <button
                     key={p.id}
                     type="button"
-                    disabled={started}
                     aria-pressed={active}
                     onClick={() => pickPersona(p.id)}
-                    className={`rounded-xl border px-4 py-3 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60 ${
+                    className={`rounded-xl border px-4 py-3 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
                       active
-                        ? "border-primary bg-primary/10 shadow-[0_0_24px_-6px_var(--primary)]"
+                        ? "border-primary bg-primary/15 shadow-[0_0_24px_-6px_var(--primary)]"
                         : "border-border bg-background/40 hover:border-primary/50"
                     }`}
                   >
@@ -374,16 +484,39 @@ function ArenaHome() {
                 );
               })}
             </div>
-            {!started && (
-              <div className="mt-3 text-center">
-                <Button onClick={startDebate} size="lg" className="font-display text-lg">
-                  <Gavel aria-hidden="true" /> Begin the debate
-                </Button>
+            <div className="mt-3 text-center">
+              <Button onClick={startDebate} size="lg" className="font-display text-lg">
+                <Gavel aria-hidden="true" /> Begin the debate
+              </Button>
+            </div>
+          </div>
+        ) : (
+          // Mid-debate the picker collapses to the sitting judge: four dead
+          // cards offered a choice that could no longer be made, and the same
+          // fact was printed again in the score banner above.
+          <div className="arena-panel mx-auto flex max-w-3xl items-center justify-center gap-4 rounded-xl px-6 py-2.5">
+            <Gavel className="size-7 shrink-0 text-primary" aria-hidden="true" />
+            <div className="text-left">
+              <div className="font-display text-xl font-bold text-primary sm:text-2xl">
+                {persona.title} presiding
               </div>
-            )}
+              <div className="text-sm text-muted-foreground sm:text-base">
+                weights {criterionLabel(persona.focus)} · {persona.docFraming}
+                {scorecard?.interim ? " · score is provisional" : ""}
+              </div>
+            </div>
           </div>
         )}
       </footer>
+
+      <Link
+        to="/arena"
+        aria-label="Control arena (booth operators)"
+        title="Control arena"
+        className="fixed right-1.5 bottom-1.5 z-20 rounded-md p-2 text-muted-foreground/40 transition-colors hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <SlidersHorizontal className="size-4" aria-hidden="true" />
+      </Link>
     </main>
   );
 }

@@ -11,7 +11,7 @@
  * concept — keeping the names distinct stops the two from being confused.
  */
 
-import type { CharacterId, DebaterConfig, Side } from "./debate/types";
+import type { ArenaSettings, CharacterId, DebaterConfig, Side } from "./debate/types";
 import { FAHAD_ART, KHALID_ART, RANIA_ART, NOURA_ART, type AgentMoodArt } from "./agent-art";
 
 export type { CharacterId };
@@ -55,8 +55,9 @@ export type Character = {
  * therefore aims its manner at the opposing argument, and closes with an
  * explicit instruction to commit to whichever side it is given.
  *
- * The "under 90 words" convention matches `TONE_PRESETS` so that turn length
- * stays consistent however a debater is configured.
+ * The "under 50 words" convention matches `TONE_PRESETS` and the engine's own
+ * `TURN_WORD_LIMIT` in `useDebate`, which enforces it at a sentence boundary —
+ * so turn length stays consistent however a debater is configured.
  */
 
 /** Appended to every character prompt; keeps manner from becoming a stance. */
@@ -71,7 +72,7 @@ export const CHARACTERS: Record<CharacterId, Character> = {
     nativeSide: "left",
     patch: {
       name: "Fahad",
-      systemPrompt: `You are Fahad, a Saudi fintech founder who has raised real money and shipped real product. Argue in vivid narrative: open with the outcome, name the customer, and make the stakes concrete. Reach for momentum, adoption curves and what competitors are already doing. Treat the caution in the other position as a cost. Keep responses under 90 words. ${COMMIT_TO_SIDE}`,
+      systemPrompt: `You are Fahad, a Saudi fintech founder who has raised real money and shipped real product. Argue in vivid narrative: open with the outcome, name the customer, and make the stakes concrete. Reach for momentum, adoption curves and what competitors are already doing. Treat the caution in the other position as a cost. Keep responses under 50 words. ${COMMIT_TO_SIDE}`,
       tonePreset: "Custom",
       temperature: 1.1,
       topP: 0.95,
@@ -87,7 +88,7 @@ export const CHARACTERS: Record<CharacterId, Character> = {
     nativeSide: "right",
     patch: {
       name: "Noura",
-      systemPrompt: `You are Noura, a government policy analyst who reviews proposals for a living. Make your own case from figures, timelines and precedent. When the position you are opposing says something unquantified — 'scalable', 'soon', 'significant' — name that vagueness and ask what it means in numbers. Be direct and unimpressed by enthusiasm. Keep responses under 90 words. ${COMMIT_TO_SIDE}`,
+      systemPrompt: `You are Noura, a government policy analyst who reviews proposals for a living. Make your own case from figures, timelines and precedent. When the position you are opposing says something unquantified — 'scalable', 'soon', 'significant' — name that vagueness and ask what it means in numbers. Be direct and unimpressed by enthusiasm. Keep responses under 50 words. ${COMMIT_TO_SIDE}`,
       tonePreset: "Custom",
       temperature: 0.35,
       topP: 0.78,
@@ -103,7 +104,7 @@ export const CHARACTERS: Record<CharacterId, Character> = {
     nativeSide: "left",
     patch: {
       name: "Rania",
-      systemPrompt: `You are Rania, second-generation leadership at a family logistics firm that has survived three downturns. Argue from consequence and durability: what your side protects, and what breaks under the position you are opposing — who absorbs it, how it is unwound if wrong. Grant the other argument its strongest point warmly before showing what it costs. Keep responses under 90 words. ${COMMIT_TO_SIDE}`,
+      systemPrompt: `You are Rania, second-generation leadership at a family logistics firm that has survived three downturns. Argue from consequence and durability: what your side protects, and what breaks under the position you are opposing — who absorbs it, how it is unwound if wrong. Grant the other argument its strongest point warmly before showing what it costs. Keep responses under 50 words. ${COMMIT_TO_SIDE}`,
       tonePreset: "Custom",
       temperature: 0.65,
       topP: 0.88,
@@ -119,7 +120,7 @@ export const CHARACTERS: Record<CharacterId, Character> = {
     nativeSide: "right",
     patch: {
       name: "Khalid",
-      systemPrompt: `You are Khalid, a marketing strategist who judges every idea by whether people will actually use it. Argue from experience, friction and perception: who adopts your side, what they feel at first contact, what they tell others. Redirect the other argument's technical points to their human consequence. Land memorable phrasing. Keep responses under 90 words. ${COMMIT_TO_SIDE}`,
+      systemPrompt: `You are Khalid, a marketing strategist who judges every idea by whether people will actually use it. Argue from experience, friction and perception: who adopts your side, what they feel at first contact, what they tell others. Redirect the other argument's technical points to their human consequence. Land memorable phrasing. Keep responses under 50 words. ${COMMIT_TO_SIDE}`,
       tonePreset: "Custom",
       temperature: 0.85,
       topP: 0.98,
@@ -188,6 +189,56 @@ export function characterPatchOf(config: DebaterConfig): CharacterPatch {
     topP: config.topP,
     thinkingLevel: config.thinkingLevel,
     voice: config.voice,
+  };
+}
+
+/**
+ * The settings patch that seats `id` in a slot — or clears the slot with
+ * `null`.
+ *
+ * Shared by the configuration panel and the on-stage cast switcher, so the
+ * two surfaces can never drift: the same rules apply everywhere. Picking a
+ * character who is already seated on the *other* side swaps the two slots
+ * rather than duplicating them (a debate between two copies of one person is
+ * not a debate), and a swap exchanges the personality each slot is actually
+ * holding — so anything hand-tuned beforehand travels with its character
+ * instead of being silently rebuilt from the registry preset.
+ */
+export function castSelectionPatch(
+  settings: ArenaSettings,
+  side: Side,
+  id: CharacterId | null,
+): Partial<ArenaSettings> {
+  const other: Side = side === "alpha" ? "beta" : "alpha";
+  const current = settings[side];
+  const opposite = settings[other];
+
+  if (id === null) {
+    return { [side]: { ...current, characterId: null } } as Partial<ArenaSettings>;
+  }
+
+  if (opposite.characterId === id) {
+    return {
+      [side]: { ...current, ...characterPatchOf(opposite), characterId: id },
+      [other]: {
+        ...opposite,
+        ...characterPatchOf(current),
+        characterId: current.characterId ?? null,
+      },
+    } as Partial<ArenaSettings>;
+  }
+
+  return {
+    [side]: { ...current, ...CHARACTERS[id].patch, characterId: id },
+  } as Partial<ArenaSettings>;
+}
+
+/** Draw two different characters and seat them in one settings patch. */
+export function randomCastPatch(settings: ArenaSettings): Partial<ArenaSettings> {
+  const [first, second] = randomCast();
+  return {
+    alpha: { ...settings.alpha, ...CHARACTERS[first].patch, characterId: first },
+    beta: { ...settings.beta, ...CHARACTERS[second].patch, characterId: second },
   };
 }
 

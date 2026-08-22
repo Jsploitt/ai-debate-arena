@@ -28,6 +28,53 @@ export type Slot = Side | "judge";
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 /**
+ * The hard per-turn word budget, enforced by the engine rather than trusted to
+ * the prompt. Local models routinely blow through a "keep it under N words"
+ * instruction, so the stream is stopped once the sentence that crosses this
+ * budget completes — see `clipAtSentenceEnd`.
+ */
+export const TURN_WORD_LIMIT = 50;
+
+/**
+ * How far past the budget a turn may run while waiting for the current
+ * sentence to end. A model that stops punctuating entirely would otherwise
+ * stream forever; at this ceiling the turn is cut at the last whitespace,
+ * which is the one case where a clean sentence end is not on offer.
+ */
+const TURN_WORD_CEILING = TURN_WORD_LIMIT * 2;
+
+const wordCount = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
+
+/**
+ * Clip a streaming turn at the end of the sentence that crosses the word
+ * budget.
+ *
+ * Returns `null` while the text is still within budget, or over budget but
+ * mid-sentence — the caller keeps streaming. Once the crossing sentence ends
+ * (`. ! ? ؟ …`, Latin or Arabic), the clipped text is returned and the caller
+ * stops the stream. The turn therefore never cuts mid-word or mid-sentence;
+ * it simply doesn't get to start another sentence.
+ */
+export function clipAtSentenceEnd(text: string, limit = TURN_WORD_LIMIT): string | null {
+  if (wordCount(text) <= limit) return null;
+
+  const boundary = /[.!?؟…]+["'”»)]*(?=\s|$)/g;
+  let match: RegExpExecArray | null;
+  while ((match = boundary.exec(text)) !== null) {
+    const prefix = text.slice(0, match.index + match[0].length);
+    if (wordCount(prefix) >= limit) return prefix.trim();
+  }
+
+  // No sentence end since the budget was crossed. Give the sentence room, but
+  // not forever: at the ceiling, fall back to the last whole word.
+  if (wordCount(text) >= TURN_WORD_CEILING) {
+    const words = text.trim().split(/\s+/).slice(0, TURN_WORD_CEILING);
+    return words.join(" ");
+  }
+  return null;
+}
+
+/**
  * Separate a model's private reasoning from what it actually says on stage.
  *
  * Matching only a literal `<think>`…`</think>` pair is not enough. Models
@@ -103,6 +150,7 @@ function systemFor(
       : 'Talk straight to your opponent using "you"/"your", as if replying to what they just said, the way a real person would in a live argument. Never describe the debate\'s structure or rounds.',
     'Never refer to your opponent by any name or label (not "Beta", "Alpha", "my opponent", "Debater X", etc.) — call them "you" every time, exactly like a real person arguing face to face never says the other person\'s debate title out loud.',
     "Respond with one focused argument. Never role-play the opponent. Never use bullet lists.",
+    `Hard limit: ${TURN_WORD_LIMIT} words per turn. The stage microphone cuts off at the end of the sentence that crosses that limit, so land your strongest point early and stop — a short, complete argument always beats a long one that gets cut.`,
     // Openers kept arriving as invented anecdotes -- a named colleague, then a
     // named customer ("Fatima in Riyadh") with a timestamp and a metric. None
     // of it is real, none of it has context, and it reads as nonsense on stage.
@@ -168,6 +216,16 @@ export function useDebate(settings: ArenaSettings) {
   const busyRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const historyRef = useRef<Record<Side, ChatMessage[]>>({ alpha: [], beta: [] });
+  /**
+   * Finalized turns, updated synchronously the moment a turn completes.
+   *
+   * The judge must not read `messagesRef` for this: that ref mirrors React
+   * state, which only commits on the next render — so a judge invoked right
+   * after `runTurn` returned still saw the just-finished turn as streaming.
+   * Every interim therefore scored one turn behind, and the final verdict
+   * was computed with the last turn missing from the transcript entirely.
+   */
+  const transcriptRef = useRef<DebateMessage[]>([]);
 
   const log = useCallback((kind: LogKind, side: Side | "system", text: string) => {
     setLogs((prev) => {
@@ -284,6 +342,9 @@ export function useDebate(settings: ArenaSettings) {
       let evalCount = 0;
       let promptTokens = 0;
       let chunkCount = 0;
+      // Set once the visible content crosses the word budget and its final
+      // sentence completes; from then on this is the turn's whole text.
+      let clippedContent: string | null = null;
 
       const iterator = live
         ? streamChat(config, payload, controller.signal)
@@ -304,13 +365,15 @@ export function useDebate(settings: ArenaSettings) {
             raw += chunk.content;
             evalCount += 1;
             const parts = splitReasoning(raw);
+            clippedContent = clipAtSentenceEnd(parts.content);
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === messageId
-                  ? { ...m, content: parts.content, reasoning: parts.reasoning }
+                  ? { ...m, content: clippedContent ?? parts.content, reasoning: parts.reasoning }
                   : m,
               ),
             );
+            if (clippedContent !== null) break;
           }
           chunkCount += 1;
           if (chunkCount % 6 === 0 || chunk.done) {
@@ -341,17 +404,30 @@ export function useDebate(settings: ArenaSettings) {
             raw += chunk.content;
             evalCount += 1;
             const parts = splitReasoning(raw);
+            clippedContent = clipAtSentenceEnd(parts.content);
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === messageId
-                  ? { ...m, content: parts.content, reasoning: parts.reasoning }
+                  ? { ...m, content: clippedContent ?? parts.content, reasoning: parts.reasoning }
                   : m,
               ),
             );
+            if (clippedContent !== null) break;
           }
           if (chunk.evalCount) evalCount = chunk.evalCount;
           if (chunk.promptEvalCount) promptTokens = chunk.promptEvalCount;
         }
+      }
+
+      // A clipped turn leaves the request streaming server-side; stop it so
+      // the runtime is not still generating a turn nobody will see.
+      if (clippedContent !== null) {
+        controller.abort();
+        log(
+          "info",
+          side,
+          `Turn reached the ${TURN_WORD_LIMIT}-word limit — stopped at the sentence end.`,
+        );
       }
 
       const durationMs = performance.now() - started;
@@ -364,13 +440,14 @@ export function useDebate(settings: ArenaSettings) {
         durationMs: Math.round(durationMs),
       };
 
+      const spoken = clippedContent ?? (parts.content || raw);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId
             ? {
                 ...m,
                 streaming: false,
-                content: parts.content || raw,
+                content: spoken,
                 reasoning: parts.reasoning,
                 telemetry,
               }
@@ -381,8 +458,16 @@ export function useDebate(settings: ArenaSettings) {
       setContextTokens((prev) => prev + evalCount + (promptTokens || Math.round(raw.length / 4)));
       setStatus((prev) => ({ ...prev, [side]: "idle" }));
 
-      const spoken = parts.content || raw;
       historyRef.current[side].push({ role: "assistant", content: spoken });
+      transcriptRef.current.push({
+        id: messageId,
+        side,
+        round,
+        content: spoken,
+        reasoning: parts.reasoning,
+        streaming: false,
+        telemetry,
+      });
       const other: Side = side === "alpha" ? "beta" : "alpha";
       historyRef.current[other].push({
         role: "user",
@@ -424,97 +509,143 @@ export function useDebate(settings: ArenaSettings) {
     return { ...next, [other]: prev[other] } as JudgeScorecard;
   }, []);
 
+  /**
+   * Judge runs are serialized, never cancelled.
+   *
+   * The old behaviour bumped a sequence number per call and discarded any
+   * in-flight run's result. Simulation never noticed — its judge is
+   * synchronous — but a real judge model takes seconds per interim, so on
+   * live hardware each new turn's judge request would have killed the
+   * previous one and the scoreboard would barely have moved. Now one job
+   * runs at a time; while it runs, the newest request waits in a single
+   * pending slot (a final replaces a pending interim, never the reverse).
+   * Collapsed interims re-snapshot the transcript when they finally run, so
+   * a slow judge lags but never scores stale data — and when two different
+   * sides' interims collapse into one, the side-freeze is dropped so both
+   * columns move. `judgeSeqRef` is now bumped only by start/reset, where it
+   * invalidates every outstanding job.
+   */
+  const judgeBusyRef = useRef(false);
+  const judgePendingRef = useRef<{ interim: boolean; onlySide: Side | null } | null>(null);
+
   const judgeDebate = useCallback(
     async (interim = false, onlySide: Side | null = null) => {
       const s = settingsRef.current;
-      const transcript = messagesRef.current.filter((m) => !m.streaming && m.content.trim());
+      // transcriptRef, not messagesRef: the state mirror lags a render behind,
+      // which made every judge run score with the just-finished turn missing.
+      const transcript = transcriptRef.current.filter((m) => m.content.trim());
       if (!s.judge.enabled || transcript.length < 1 || !topicRef.current) return;
 
-      const seq = ++judgeSeqRef.current;
+      if (judgeBusyRef.current) {
+        const pending = judgePendingRef.current;
+        if (pending && !pending.interim && interim) return; // never demote a waiting final
+        judgePendingRef.current = {
+          interim: pending ? pending.interim && interim : interim,
+          onlySide: pending && pending.onlySide !== onlySide ? null : onlySide,
+        };
+        return;
+      }
+      judgeBusyRef.current = true;
+
+      const seq = judgeSeqRef.current;
       const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
       setJudging(true);
-      // Keep the previous scorecard visible while ANY update is computed. The
-      // final run used to blank it, so the scoreboard flashed 0.0 / 0.0 for a
-      // few seconds right before the verdict landed.
-      log(
-        "info",
-        "system",
-        interim
-          ? `AI Judge updating live score after ${transcript.length} turns…`
-          : "AI Judge is scoring the debate…",
-      );
+      try {
+        // Keep the previous scorecard visible while ANY update is computed. The
+        // final run used to blank it, so the scoreboard flashed 0.0 / 0.0 for a
+        // few seconds right before the verdict landed.
+        log(
+          "info",
+          "system",
+          interim
+            ? `AI Judge updating live score after ${transcript.length} turns…`
+            : "AI Judge is scoring the debate…",
+        );
 
-      if (!usingSimulationRef.current) {
-        try {
-          const judgeConfig = resolvedRef.current.judge
-            ? { ...s.judge, model: resolvedRef.current.judge }
-            : s.judge;
-          log(
-            "request",
-            "system",
-            `POST ${judgeConfig.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${judgeConfig.model} temperature=${judgeConfig.temperature}`,
-          );
-          const { scorecard: live, raw } = await runLiveJudge(
-            judgeConfig,
-            topicRef.current,
-            transcript,
-            names,
-            undefined,
-            (rawChunk) => {
-              try {
-                const parsed = JSON.parse(rawChunk) as { model?: string };
-                if (parsed.model) setResolved("judge", parsed.model);
-              } catch {
-                /* non-JSON keepalive line */
-              }
-            },
-            interim,
-            s.language,
-            (partial) => {
-              // Live-stream the verdict + scorecard as the judge writes it.
-              if (seq !== judgeSeqRef.current) return;
-              setScorecard(mergeSide(partial, onlySide));
-            },
-          );
-          if (seq !== judgeSeqRef.current) return;
-          if (live) {
-            setScorecard(mergeSide(live, onlySide));
+        if (!usingSimulationRef.current) {
+          try {
+            const judgeConfig = resolvedRef.current.judge
+              ? { ...s.judge, model: resolvedRef.current.judge }
+              : s.judge;
             log(
-              "info",
+              "request",
               "system",
-              `AI Judge ${interim ? "running leader" : "verdict"}: ${live.winner.toUpperCase()}.`,
+              `POST ${judgeConfig.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${judgeConfig.model} temperature=${judgeConfig.temperature}`,
             );
-            setJudging(false);
-            return;
+            const { scorecard: live, raw } = await runLiveJudge(
+              judgeConfig,
+              topicRef.current,
+              transcript,
+              names,
+              undefined,
+              (rawChunk) => {
+                try {
+                  const parsed = JSON.parse(rawChunk) as { model?: string };
+                  if (parsed.model) setResolved("judge", parsed.model);
+                } catch {
+                  /* non-JSON keepalive line */
+                }
+              },
+              interim,
+              s.language,
+              (partial) => {
+                if (seq !== judgeSeqRef.current) return;
+                // Interim updates land as ONE discrete change when the judge
+                // finishes, right after the scored turn — streaming them made
+                // the scoreboard drift continuously while a debater was still
+                // speaking. Only the final verdict streams in live, when the
+                // floor is already silent.
+                if (interim) return;
+                setScorecard(mergeSide(partial, onlySide));
+              },
+            );
+            if (seq !== judgeSeqRef.current) return;
+            if (live) {
+              setScorecard(mergeSide(live, onlySide));
+              log(
+                "info",
+                "system",
+                `AI Judge ${interim ? "running leader" : "verdict"}: ${live.winner.toUpperCase()}.`,
+              );
+              setJudging(false);
+              return;
+            }
+            log(
+              "error",
+              "system",
+              `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`,
+            );
+          } catch (error) {
+            if (seq !== judgeSeqRef.current) return;
+            const msg = error instanceof Error ? error.message : String(error);
+            log("error", "system", `AI Judge request failed (${msg}) — using simulated scoring.`);
           }
-          log(
-            "error",
-            "system",
-            `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`,
-          );
-        } catch (error) {
-          if (seq !== judgeSeqRef.current) return;
-          const msg = error instanceof Error ? error.message : String(error);
-          log("error", "system", `AI Judge request failed (${msg}) — using simulated scoring.`);
+        }
+
+        if (seq !== judgeSeqRef.current) return;
+        const simulated = simulateJudge(
+          topicRef.current,
+          transcript,
+          names,
+          s.judge,
+          interim,
+          s.language,
+        );
+        setScorecard(mergeSide(simulated, onlySide));
+        log(
+          "info",
+          "system",
+          `AI Judge (simulated) ${interim ? "running leader" : "verdict"}: ${simulated.winner.toUpperCase()}.`,
+        );
+        setJudging(false);
+      } finally {
+        judgeBusyRef.current = false;
+        const pending = judgePendingRef.current;
+        judgePendingRef.current = null;
+        if (pending && seq === judgeSeqRef.current) {
+          void judgeDebate(pending.interim, pending.onlySide);
         }
       }
-
-      if (seq !== judgeSeqRef.current) return;
-      const simulated = simulateJudge(
-        topicRef.current,
-        transcript,
-        names,
-        s.judge,
-        interim,
-        s.language,
-      );
-      setScorecard(mergeSide(simulated, onlySide));
-      log(
-        "info",
-        "system",
-        `AI Judge (simulated) ${interim ? "running leader" : "verdict"}: ${simulated.winner.toUpperCase()}.`,
-      );
-      setJudging(false);
     },
     [log, setResolved, mergeSide],
   );
@@ -578,6 +709,7 @@ export function useDebate(settings: ArenaSettings) {
       topicRef.current = trimmed;
       setTopic(trimmed);
       historyRef.current = { alpha: [], beta: [] };
+      transcriptRef.current = [];
       turnRef.current = 0;
       setTurnIndex(0);
       setMessages([]);
@@ -634,6 +766,7 @@ export function useDebate(settings: ArenaSettings) {
     turnRef.current = 0;
     topicRef.current = "";
     historyRef.current = { alpha: [], beta: [] };
+    transcriptRef.current = [];
     setTopic("");
     setTurnIndex(0);
     setMessages([]);

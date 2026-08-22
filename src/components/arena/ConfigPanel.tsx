@@ -22,12 +22,11 @@ import { DEFAULT_JUDGE_WEIGHTS, JUDGE_CRITERIA } from "@/lib/debate/judge";
 import { listModels } from "@/lib/debate/ollamaClient";
 import { KOKORO_VOICES, TONE_PRESETS } from "@/lib/debate/presets";
 import {
-  CHARACTERS,
   CHARACTER_LIST,
+  castSelectionPatch,
   characterById,
-  characterPatchOf,
   isCharacterModified,
-  randomCast,
+  randomCastPatch,
 } from "@/lib/characters";
 import type {
   ArenaSettings,
@@ -373,7 +372,9 @@ function CastSection({
                 src={character.art.pleased}
                 alt=""
                 aria-hidden="true"
-                className={`h-20 w-full rounded-lg object-cover object-top ${
+                // aspect 405/430: cover shows exactly the top 430 rows of the
+                // 405x786 figure — the whole head — at any rendered width.
+                className={`aspect-[405/430] w-full rounded-lg object-cover object-top ${
                   position === character.nativeSide ? "" : "scale-x-[-1]"
                 }`}
               />
@@ -520,51 +521,16 @@ export function ConfigPanel({
   const maxTotal = settings.judge.scale * JUDGE_CRITERIA.length;
 
   /**
-   * Assign a character to one slot.
-   *
-   * The two slots can never hold the same character — a debate between two
-   * copies of one person is not a debate. Rather than disabling the card,
-   * picking someone who is already opposite *swaps* the two slots, which is
-   * what you actually want when you meant to reverse the matchup.
+   * Assign a character to one slot. Selection and swap rules live in
+   * `castSelectionPatch`, shared with the on-stage cast switcher.
    */
   const selectCharacter = (side: Side, id: CharacterId | null) => {
-    const other: Side = side === "alpha" ? "beta" : "alpha";
-    const current = settings[side];
-    const opposite = settings[other];
-
-    if (id === null) {
-      onChange({ [side]: { ...current, characterId: null } } as Partial<ArenaSettings>);
-      return;
-    }
-
-    const applied = { ...current, ...CHARACTERS[id].patch, characterId: id };
-
-    if (opposite.characterId === id) {
-      // A swap moves both characters; it does not reset them. Exchange the
-      // personality each slot is actually holding rather than rebuilding the
-      // displaced one from its registry preset, so anything tuned beforehand
-      // travels with its character instead of being silently discarded.
-      onChange({
-        [side]: { ...current, ...characterPatchOf(opposite), characterId: id },
-        [other]: {
-          ...opposite,
-          ...characterPatchOf(current),
-          characterId: current.characterId ?? null,
-        },
-      } as Partial<ArenaSettings>);
-      return;
-    }
-
-    onChange({ [side]: applied } as Partial<ArenaSettings>);
+    onChange(castSelectionPatch(settings, side, id));
   };
 
   /** Draw two different characters and seat them in one update. */
   const randomizeCast = () => {
-    const [first, second] = randomCast();
-    onChange({
-      alpha: { ...settings.alpha, ...CHARACTERS[first].patch, characterId: first },
-      beta: { ...settings.beta, ...CHARACTERS[second].patch, characterId: second },
-    });
+    onChange(randomCastPatch(settings));
   };
 
   return (

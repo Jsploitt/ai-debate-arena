@@ -55,7 +55,7 @@ file is stock shadcn slate and is vestigial; do not build against it.
 
 | Token                  | Value                                    | Role                                                    |
 | ---------------------- | ---------------------------------------- | ------------------------------------------------------- |
-| `--background`         | `oklch(0.17 0.035 252)`                  | deep desaturated navy canvas                            |
+| `--background`         | `oklch(0.19 0.052 256)`                  | deep blue canvas — visibly blue, not near-black         |
 | `--foreground`         | `oklch(0.96 0.006 250)`                  | near-white text                                         |
 | `--card` / `--popover` | `oklch(0.22 0.036 254)`                  | raised surfaces                                         |
 | `--primary`            | `oklch(0.62 0.15 245)`                   | the single accent — buttons, active borders, pips       |
@@ -99,17 +99,18 @@ background-attachment: fixed;
 
 ## `@utility` catalogue
 
-| Utility                                                 | What it does                                                                                                                                     |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `arena-panel`                                           | the standard raised card: `linear-gradient(160deg, oklch(0.235 0.036 254), oklch(0.195 0.032 253))`, 1px border, `box-shadow: var(--arena-glow)` |
-| `gold-text`                                             | the title gradient — despite the name it is icy blue, `oklch(0.93 0.05 235) → oklch(0.66 0.15 245)`, background-clip:text                        |
-| `topic-marquee` / `topic-marquee-rev`                   | opposed infinite rails, `translateX(0 → -50%)` over 42s / 46s linear                                                                             |
-| `bubble-pop`                                            | 0.35s ease-out entrance from `opacity 0, translateY(8px) scale(0.96)`                                                                            |
-| `spotlight-beam`                                        | the blurred stage cone: vertical gradient, `clip-path: polygon(38% 0%, 62% 0%, 100% 100%, 0% 100%)`, `beam-flicker` 3.2s, `filter: blur(2px)`    |
-| `stage-floor`                                           | radial floor wash under the characters                                                                                                           |
-| `cloud-bubble` + `cloud-tail-left` / `cloud-tail-right` | white cartoon speech cloud, `border-radius: 2.25rem`, dark text, drop shadow; the tail is a clipped `::before`                                   |
-| `topic-ring` / `topic-ring-rev`                         | 3D `rotateY` carousel, 34s / 40s                                                                                                                 |
-| `arena-scroll`                                          | thin custom scrollbar for panels that scroll                                                                                                     |
+| Utility                                                 | What it does                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `arena-panel`                                           | the standard raised card: `linear-gradient(160deg, oklch(0.235 0.036 254), oklch(0.195 0.032 253))`, 1px border, `box-shadow: var(--arena-glow)`                                                                                                                                |
+| `gold-text`                                             | the title gradient — despite the name it is icy blue, `oklch(0.93 0.05 235) → oklch(0.66 0.15 245)`, background-clip:text                                                                                                                                                       |
+| `topic-marquee` / `topic-marquee-rev`                   | opposed infinite rails, `translateX(0 → -50%)` over 42s / 46s linear                                                                                                                                                                                                            |
+| `bubble-pop`                                            | 0.35s ease-out entrance from `opacity 0, translateY(8px) scale(0.96)`                                                                                                                                                                                                           |
+| `spotlight-beam`                                        | the blurred stage cone: vertical gradient holding brightness to the floor, `clip-path: polygon(42% 0%, 58% 0%, 100% 100%, 0% 100%)`, `beam-flicker` 3.2s, `filter: blur(2px)`; on `/` the beam element overshoots the section top by 50vh so it starts at the top of the screen |
+| `stage-floor`                                           | radial floor wash under the characters                                                                                                                                                                                                                                          |
+| `stage-backdrop`                                        | static set dressing behind `/`: a fine 76px grid + floor wash on `::before`, masked to fade upward; alphas ≤ 0.13                                                                                                                                                               |
+| `cloud-bubble` + `cloud-tail-left` / `cloud-tail-right` | white cartoon speech cloud, `border-radius: 2.25rem`, dark text, drop shadow; the tail is a clipped `::before`                                                                                                                                                                  |
+| `topic-ring` / `topic-ring-rev`                         | 3D `rotateY` carousel, 34s / 40s                                                                                                                                                                                                                                                |
+| `arena-scroll`                                          | thin custom scrollbar for panels that scroll                                                                                                                                                                                                                                    |
 
 ## The typographic motif
 
