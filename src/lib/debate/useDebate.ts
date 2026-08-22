@@ -509,6 +509,25 @@ export function useDebate(settings: ArenaSettings) {
     return { ...next, [other]: prev[other] } as JudgeScorecard;
   }, []);
 
+  /**
+   * Judge runs are serialized, never cancelled.
+   *
+   * The old behaviour bumped a sequence number per call and discarded any
+   * in-flight run's result. Simulation never noticed — its judge is
+   * synchronous — but a real judge model takes seconds per interim, so on
+   * live hardware each new turn's judge request would have killed the
+   * previous one and the scoreboard would barely have moved. Now one job
+   * runs at a time; while it runs, the newest request waits in a single
+   * pending slot (a final replaces a pending interim, never the reverse).
+   * Collapsed interims re-snapshot the transcript when they finally run, so
+   * a slow judge lags but never scores stale data — and when two different
+   * sides' interims collapse into one, the side-freeze is dropped so both
+   * columns move. `judgeSeqRef` is now bumped only by start/reset, where it
+   * invalidates every outstanding job.
+   */
+  const judgeBusyRef = useRef(false);
+  const judgePendingRef = useRef<{ interim: boolean; onlySide: Side | null } | null>(null);
+
   const judgeDebate = useCallback(
     async (interim = false, onlySide: Side | null = null) => {
       const s = settingsRef.current;
@@ -517,96 +536,116 @@ export function useDebate(settings: ArenaSettings) {
       const transcript = transcriptRef.current.filter((m) => m.content.trim());
       if (!s.judge.enabled || transcript.length < 1 || !topicRef.current) return;
 
-      const seq = ++judgeSeqRef.current;
+      if (judgeBusyRef.current) {
+        const pending = judgePendingRef.current;
+        if (pending && !pending.interim && interim) return; // never demote a waiting final
+        judgePendingRef.current = {
+          interim: pending ? pending.interim && interim : interim,
+          onlySide: pending && pending.onlySide !== onlySide ? null : onlySide,
+        };
+        return;
+      }
+      judgeBusyRef.current = true;
+
+      const seq = judgeSeqRef.current;
       const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
       setJudging(true);
-      // Keep the previous scorecard visible while ANY update is computed. The
-      // final run used to blank it, so the scoreboard flashed 0.0 / 0.0 for a
-      // few seconds right before the verdict landed.
-      log(
-        "info",
-        "system",
-        interim
-          ? `AI Judge updating live score after ${transcript.length} turns…`
-          : "AI Judge is scoring the debate…",
-      );
+      try {
+        // Keep the previous scorecard visible while ANY update is computed. The
+        // final run used to blank it, so the scoreboard flashed 0.0 / 0.0 for a
+        // few seconds right before the verdict landed.
+        log(
+          "info",
+          "system",
+          interim
+            ? `AI Judge updating live score after ${transcript.length} turns…`
+            : "AI Judge is scoring the debate…",
+        );
 
-      if (!usingSimulationRef.current) {
-        try {
-          const judgeConfig = resolvedRef.current.judge
-            ? { ...s.judge, model: resolvedRef.current.judge }
-            : s.judge;
-          log(
-            "request",
-            "system",
-            `POST ${judgeConfig.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${judgeConfig.model} temperature=${judgeConfig.temperature}`,
-          );
-          const { scorecard: live, raw } = await runLiveJudge(
-            judgeConfig,
-            topicRef.current,
-            transcript,
-            names,
-            undefined,
-            (rawChunk) => {
-              try {
-                const parsed = JSON.parse(rawChunk) as { model?: string };
-                if (parsed.model) setResolved("judge", parsed.model);
-              } catch {
-                /* non-JSON keepalive line */
-              }
-            },
-            interim,
-            s.language,
-            (partial) => {
-              if (seq !== judgeSeqRef.current) return;
-              // Interim updates land as ONE discrete change when the judge
-              // finishes, right after the scored turn — streaming them made
-              // the scoreboard drift continuously while a debater was still
-              // speaking. Only the final verdict streams in live, when the
-              // floor is already silent.
-              if (interim) return;
-              setScorecard(mergeSide(partial, onlySide));
-            },
-          );
-          if (seq !== judgeSeqRef.current) return;
-          if (live) {
-            setScorecard(mergeSide(live, onlySide));
+        if (!usingSimulationRef.current) {
+          try {
+            const judgeConfig = resolvedRef.current.judge
+              ? { ...s.judge, model: resolvedRef.current.judge }
+              : s.judge;
             log(
-              "info",
+              "request",
               "system",
-              `AI Judge ${interim ? "running leader" : "verdict"}: ${live.winner.toUpperCase()}.`,
+              `POST ${judgeConfig.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${judgeConfig.model} temperature=${judgeConfig.temperature}`,
             );
-            setJudging(false);
-            return;
+            const { scorecard: live, raw } = await runLiveJudge(
+              judgeConfig,
+              topicRef.current,
+              transcript,
+              names,
+              undefined,
+              (rawChunk) => {
+                try {
+                  const parsed = JSON.parse(rawChunk) as { model?: string };
+                  if (parsed.model) setResolved("judge", parsed.model);
+                } catch {
+                  /* non-JSON keepalive line */
+                }
+              },
+              interim,
+              s.language,
+              (partial) => {
+                if (seq !== judgeSeqRef.current) return;
+                // Interim updates land as ONE discrete change when the judge
+                // finishes, right after the scored turn — streaming them made
+                // the scoreboard drift continuously while a debater was still
+                // speaking. Only the final verdict streams in live, when the
+                // floor is already silent.
+                if (interim) return;
+                setScorecard(mergeSide(partial, onlySide));
+              },
+            );
+            if (seq !== judgeSeqRef.current) return;
+            if (live) {
+              setScorecard(mergeSide(live, onlySide));
+              log(
+                "info",
+                "system",
+                `AI Judge ${interim ? "running leader" : "verdict"}: ${live.winner.toUpperCase()}.`,
+              );
+              setJudging(false);
+              return;
+            }
+            log(
+              "error",
+              "system",
+              `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`,
+            );
+          } catch (error) {
+            if (seq !== judgeSeqRef.current) return;
+            const msg = error instanceof Error ? error.message : String(error);
+            log("error", "system", `AI Judge request failed (${msg}) — using simulated scoring.`);
           }
-          log(
-            "error",
-            "system",
-            `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`,
-          );
-        } catch (error) {
-          if (seq !== judgeSeqRef.current) return;
-          const msg = error instanceof Error ? error.message : String(error);
-          log("error", "system", `AI Judge request failed (${msg}) — using simulated scoring.`);
+        }
+
+        if (seq !== judgeSeqRef.current) return;
+        const simulated = simulateJudge(
+          topicRef.current,
+          transcript,
+          names,
+          s.judge,
+          interim,
+          s.language,
+        );
+        setScorecard(mergeSide(simulated, onlySide));
+        log(
+          "info",
+          "system",
+          `AI Judge (simulated) ${interim ? "running leader" : "verdict"}: ${simulated.winner.toUpperCase()}.`,
+        );
+        setJudging(false);
+      } finally {
+        judgeBusyRef.current = false;
+        const pending = judgePendingRef.current;
+        judgePendingRef.current = null;
+        if (pending && seq === judgeSeqRef.current) {
+          void judgeDebate(pending.interim, pending.onlySide);
         }
       }
-
-      if (seq !== judgeSeqRef.current) return;
-      const simulated = simulateJudge(
-        topicRef.current,
-        transcript,
-        names,
-        s.judge,
-        interim,
-        s.language,
-      );
-      setScorecard(mergeSide(simulated, onlySide));
-      log(
-        "info",
-        "system",
-        `AI Judge (simulated) ${interim ? "running leader" : "verdict"}: ${simulated.winner.toUpperCase()}.`,
-      );
-      setJudging(false);
     },
     [log, setResolved, mergeSide],
   );
