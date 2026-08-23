@@ -77,7 +77,10 @@ const alpha: DebaterConfig = {
 const beta: DebaterConfig = {
   name: "Debater Beta",
   endpoint: "http://localhost:11435/api/chat",
-  model: "gemma2:27b",
+  // Measured over 36 sides-swapped debates: the closest match for Alpha's
+  // nemotron3:33b (65% to Alpha, 95% CI [49%, 79%] -- interval spans even),
+  // where gemma2:27b lost 75% [59%, 86%]. Also ~40% faster per turn.
+  model: "qwen3:30b-a3b",
   temperature: 0.9,
   topP: 0.95,
   tonePreset: "Aggressive",
@@ -95,7 +98,11 @@ const tts: TtsSettings = {
 const judge: JudgeConfig = {
   enabled: true,
   endpoint: "http://localhost:11436/api/chat",
-  model: "nemotron-mini",
+  // A judge must not share an architecture with either debater, or it
+  // self-prefers. `nemotron-mini` did exactly that: scored identical debaters
+  // +21.7 toward Pro and picked Pro in 11 of 12 trials, and Alpha is always
+  // Pro. llama3.1:8b measured +0.3 on the same test.
+  model: "llama3.1:8b-instruct-q4_K_M",
   temperature: 0.2,
   systemPrompt: JUDGE_SYSTEM_PROMPT,
   weights: { ...DEFAULT_JUDGE_WEIGHTS },
@@ -142,6 +149,28 @@ export const SAMPLE_TOPICS = [
 
 const STORAGE_KEY = "debate-arena-settings-v1";
 
+/**
+ * Model ids retired in favour of measured replacements, and what supersedes
+ * them.
+ *
+ * Stored settings are merged *over* the defaults, so a browser that has run
+ * the arena before would otherwise keep its old models forever — including
+ * `nemotron-mini`, the judge that scored identical debaters +21.7 toward Pro.
+ * Rewriting just these ids is deliberate: bumping the storage key would work
+ * too, but it would also discard hand-tuned cast assignments and judge
+ * weights. Anything the operator has since chosen by hand is left alone.
+ */
+const RETIRED_MODELS: Record<string, string> = {
+  "gemma2:27b": "qwen3:30b-a3b",
+  "nemotron-mini": "llama3.1:8b-instruct-q4_K_M",
+  "nemotron-mini:latest": "llama3.1:8b-instruct-q4_K_M",
+};
+
+function currentModel(model: string | undefined, fallback: string): string {
+  if (!model) return fallback;
+  return RETIRED_MODELS[model] ?? model;
+}
+
 export function loadSettings(): ArenaSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
@@ -151,11 +180,20 @@ export function loadSettings(): ArenaSettings {
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
-      alpha: { ...DEFAULT_SETTINGS.alpha, ...(parsed.alpha ?? {}) },
-      beta: { ...DEFAULT_SETTINGS.beta, ...(parsed.beta ?? {}) },
+      alpha: {
+        ...DEFAULT_SETTINGS.alpha,
+        ...(parsed.alpha ?? {}),
+        model: currentModel(parsed.alpha?.model, DEFAULT_SETTINGS.alpha.model),
+      },
+      beta: {
+        ...DEFAULT_SETTINGS.beta,
+        ...(parsed.beta ?? {}),
+        model: currentModel(parsed.beta?.model, DEFAULT_SETTINGS.beta.model),
+      },
       judge: {
         ...DEFAULT_SETTINGS.judge,
         ...(parsed.judge ?? {}),
+        model: currentModel(parsed.judge?.model, DEFAULT_SETTINGS.judge.model),
         weights: { ...DEFAULT_JUDGE_WEIGHTS, ...(parsed.judge?.weights ?? {}) },
       },
       language: parsed.language ?? DEFAULT_SETTINGS.language,
