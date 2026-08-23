@@ -132,6 +132,27 @@ export function speakingSide(
  * the generated count — the model runs several turns ahead of the stage.
  * Without sync, a finalized message is a delivered one.
  */
+/**
+ * Which sides have delivered a turn, and so can carry a real score.
+ *
+ * The judge scores a side only once it has spoken, so before its first turn a
+ * side has no score at all — which is a different fact from having scored
+ * zero. The scoreboard needs to tell them apart, or the opening speaker looks
+ * like it is thrashing an opponent that has not had a chance to argue.
+ */
+export function scoredSides(
+  messages: DebateMessage[],
+  speech: SpeechView,
+): { alpha: boolean; beta: boolean } {
+  const delivered = (side: Side) =>
+    messages.some(
+      (m) =>
+        m.side === side &&
+        (speech.syncActive ? speech.revealedIds.has(m.id) : !m.streaming && !!m.content.trim()),
+    );
+  return { alpha: delivered("alpha"), beta: delivered("beta") };
+}
+
 export function deliveredTurnCount(messages: DebateMessage[], speech: SpeechView): number {
   return speech.syncActive
     ? messages.filter((m) => speech.revealedIds.has(m.id)).length
@@ -267,10 +288,23 @@ export function scoredTurnsDelivered(
 export function leanPercent(pro: number, con: number): number {
   const total = pro + con;
   if (total <= 0) return 50;
+
+  // Plot the MARGIN, not each side's share of the total.
+  //
+  // Share-of-total barely moves: both debaters score in the thirties and
+  // forties, so a five-point lead is 46.5% — three percent off centre, which
+  // reads as a dead heat. Worse, it gets less responsive as the debate runs,
+  // because the totals grow while the margin does not.
+  //
+  // The margin is what the audience actually cares about, and it widens as
+  // the debate goes on. Full deflection is set at a quarter of the combined
+  // score, so a realistic lead visibly swings the knob and a runaway pins it.
+  const fullSwing = Math.max(8, total * 0.25);
+  const lean = ((con - pro) / fullSwing) * 50;
+
   // The knob is a left-to-right position on a pro→con gradient, so the side
-  // that is ahead has to pull it toward *itself*. Returning pro's share sent
-  // it the other way: alpha at 45 against beta at 30 parked the dot on con.
-  return Math.min(92, Math.max(8, (con / total) * 100));
+  // that is ahead has to pull it toward *itself*.
+  return Math.min(92, Math.max(8, 50 + lean));
 }
 
 /**

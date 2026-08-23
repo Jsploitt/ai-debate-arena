@@ -246,6 +246,26 @@ describe("leanPercent", () => {
     expect(leanPercent(100, 0)).toBeLessThanOrEqual(92);
     expect(leanPercent(0, 100)).toBeGreaterThanOrEqual(8);
   });
+
+  it("moves visibly on a realistic lead", () => {
+    // Share-of-total put a five-point lead at 46.5% — three percent off
+    // centre, indistinguishable from a tie at the back of a room.
+    expect(leanPercent(38, 33)).toBeLessThan(40);
+    expect(leanPercent(33, 38)).toBeGreaterThan(60);
+  });
+
+  it("does not go numb as the totals grow", () => {
+    // The same margin must read the same late in a debate as early on, which
+    // share-of-total could not do: its denominator kept growing.
+    const early = leanPercent(10, 16);
+    const late = leanPercent(40, 46);
+    expect(Math.abs(early - 50)).toBeGreaterThan(10);
+    expect(Math.abs(late - 50)).toBeGreaterThan(10);
+  });
+
+  it("is symmetric about the centre", () => {
+    expect(leanPercent(41, 32) + leanPercent(32, 41)).toBeCloseTo(100, 5);
+  });
 });
 
 describe("runtimeState", () => {

@@ -25,6 +25,7 @@ import {
   runtimeLabel,
   runtimeState,
   deliveredTurnCount,
+  scoredSides,
   speakingSide,
 } from "@/lib/debate/presentation";
 import {
@@ -174,6 +175,10 @@ function ArenaHome() {
     if (bestCount >= 0) setScorecard(scoreQueueRef.current.get(bestCount)!);
   }, [debate.scorecard, debate.messages, speech_]);
 
+  // A side with no delivered turn has no score yet, which the board must not
+  // render as a zero.
+  const scored = scoredSides(debate.messages, speech_);
+
   const proTotal = scorecard?.alpha.total ?? 0;
   const conTotal = scorecard?.beta.total ?? 0;
   const round = effectiveRound(debate.turnIndex, debate.messages, speech_);
@@ -316,6 +321,7 @@ function ArenaHome() {
             totalRounds={settings.rounds}
             leanPercent={leanPercent(proTotal, conTotal)}
             provisional={scorecard?.interim}
+            scored={scored}
           />
         )}
       </header>

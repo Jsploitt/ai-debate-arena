@@ -321,6 +321,7 @@ export function ScoreSide({
   color,
   align = "left",
   compact,
+  scored = true,
 }: {
   label: string;
   /** Shown after the label on /arena; the presentation stage omits it — the nameplates carry names. */
@@ -329,6 +330,14 @@ export function ScoreSide({
   color: string;
   align?: "left" | "right";
   compact?: boolean;
+  /**
+   * Whether this side has been scored at all yet.
+   *
+   * "Scored zero" and "not scored yet" are different facts, and a scoreboard
+   * that prints 0.0 for both tells the room the opening speaker is thrashing
+   * an opponent who simply has not spoken. A dash says "no score yet".
+   */
+  scored?: boolean;
 }) {
   return (
     <div className={align === "right" ? "text-right" : ""}>
@@ -341,7 +350,7 @@ export function ScoreSide({
         {name ? ` · ${name}` : ""}
       </div>
       <div className={`font-display font-bold ${compact ? "text-2xl" : "text-5xl sm:text-6xl"}`}>
-        {score.toFixed(1)}
+        {scored ? score.toFixed(1) : <span className="text-muted-foreground">&mdash;</span>}
       </div>
     </div>
   );
@@ -358,6 +367,7 @@ export function ScoreBanner({
   leanPercent,
   provisional,
   compact,
+  scored,
 }: {
   /**
    * Omitted on the presentation stage, where the nameplates own identity and
@@ -374,6 +384,8 @@ export function ScoreBanner({
   provisional?: boolean;
   /** The tighter original scale, for the /arena stage band. */
   compact?: boolean;
+  /** Which sides have been scored yet; unscored sides render a dash. */
+  scored?: { alpha: boolean; beta: boolean };
 }) {
   const current = Math.min(Math.max(round, 1), totalRounds);
   return (
@@ -388,6 +400,7 @@ export function ScoreBanner({
         score={proTotal}
         color="text-pro"
         compact={compact}
+        scored={scored?.alpha ?? true}
       />
       <div className="text-center">
         <div
@@ -425,6 +438,7 @@ export function ScoreBanner({
         color="text-con"
         align="right"
         compact={compact}
+        scored={scored?.beta ?? true}
       />
     </div>
   );
