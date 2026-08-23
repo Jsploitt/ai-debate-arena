@@ -3,6 +3,7 @@ import { checkHealth, listModels, resolveModelName, streamChat } from "./ollamaC
 import { simulateStream, simulatedTurnText } from "./simulation";
 import { buildRequestBody } from "./ollamaClient";
 import { runLiveJudge, simulateJudge } from "./judge";
+import { TURN_SCHEMA, spokenText } from "./spokenText";
 import { LANGUAGE_INSTRUCTION, THINKING_INSTRUCTION } from "./presets";
 
 import type {
@@ -100,17 +101,28 @@ function splitReasoning(raw: string) {
     return "";
   });
 
-  // `<think>` with a stray `>` close, or none at all.
+  // `<think>` opened but not yet closed — the normal state of every chunk while
+  // a reasoning model streams, since `</think>` only arrives once it starts
+  // answering.
+  //
+  // Everything after the tag is reasoning until a close appears. A stray `>`
+  // counts as a close, because some models emit that instead of `</think>`.
+  //
+  // A blank line does NOT count, and treating it as one was a real leak:
+  // qwen3's reasoning is paragraphed prose, so the first `\n\n` split its
+  // scratchpad in half and put the remainder on stage mid-turn. It vanished
+  // the moment `</think>` arrived, which is why it never showed up in
+  // end-of-turn checks — it only flashed while the turn was generating.
   const open = text.search(/<think>/i);
   if (open !== -1) {
     const rest = text.slice(open + 7);
-    const stop = rest.search(/(?:\n\s*\n|(?<![-<])>\s)/);
+    const stop = rest.search(/(?<![-<])>\s/);
     if (stop === -1) {
       reasoning.push(rest.trim());
       text = text.slice(0, open);
     } else {
       reasoning.push(rest.slice(0, stop).trim());
-      text = text.slice(0, open) + rest.slice(stop).replace(/^(?:\s*\n\s*\n|>\s)/, "");
+      text = text.slice(0, open) + rest.slice(stop).replace(/^>\s/, "");
     }
   }
 
@@ -128,6 +140,20 @@ function splitReasoning(raw: string) {
   }
 
   return { reasoning: reasoning.join("\n").trim(), content: text.trim() };
+}
+
+/**
+ * The visible words and the private reasoning for one turn.
+ *
+ * Two layers, in order. `splitReasoning` peels off any `<think>` block —
+ * Ollama reports a reasoning model's scratchpad separately and `parseLine`
+ * re-wraps it in those tags, so it is still there even under constrained
+ * decoding. What remains is the model's actual message: constrained JSON on a
+ * live turn, plain prose in simulation.
+ */
+function parseTurn(raw: string, live: boolean) {
+  const parts = splitReasoning(raw);
+  return live ? { content: spokenText(parts.content), reasoning: parts.reasoning } : parts;
 }
 
 function systemFor(
@@ -347,7 +373,10 @@ export function useDebate(settings: ArenaSettings) {
       let clippedContent: string | null = null;
 
       const iterator = live
-        ? streamChat(config, payload, controller.signal)
+        ? // Constrained decoding: the grammar only permits {"argument": "..."},
+          // so a preamble, a `<think>` block or a trailing "(47 words)" has
+          // nowhere to be emitted. See lib/debate/spokenText.ts.
+          streamChat(config, payload, controller.signal, { format: TURN_SCHEMA })
         : simulateStream(
             simulatedTurnText(topicValue, side, index >> 1, s.language),
             config.model,
@@ -364,7 +393,7 @@ export function useDebate(settings: ArenaSettings) {
             }
             raw += chunk.content;
             evalCount += 1;
-            const parts = splitReasoning(raw);
+            const parts = parseTurn(raw, live);
             clippedContent = clipAtSentenceEnd(parts.content);
             setMessages((prev) =>
               prev.map((m) =>
@@ -403,7 +432,7 @@ export function useDebate(settings: ArenaSettings) {
             }
             raw += chunk.content;
             evalCount += 1;
-            const parts = splitReasoning(raw);
+            const parts = parseTurn(raw, live);
             clippedContent = clipAtSentenceEnd(parts.content);
             setMessages((prev) =>
               prev.map((m) =>
@@ -431,7 +460,7 @@ export function useDebate(settings: ArenaSettings) {
       }
 
       const durationMs = performance.now() - started;
-      const parts = splitReasoning(raw);
+      const parts = parseTurn(raw, live);
       const telemetry: Telemetry = {
         ttftMs: Math.round(ttft),
         tokensPerSec: durationMs > 0 ? +(evalCount / (durationMs / 1000)).toFixed(1) : 0,
