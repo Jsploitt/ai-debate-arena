@@ -28,6 +28,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSettings(loadSettings());
     setHydrated(true);
+
+    // `storage` fires in the *other* tabs/windows for the same origin. Reload
+    // through loadSettings so migrations/default merges stay in one place.
+    const onStorage = () => setSettings(loadSettings());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const updateSettings = useCallback((patch: Partial<ArenaSettings>) => {

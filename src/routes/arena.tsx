@@ -24,7 +24,9 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { AGENT_ART, AgentStage, ScoreBanner } from "@/components/arena/stage";
+import { useDebateRuntime } from "@/components/arena/DebateRuntimeProvider";
+import { AgentStage, ScoreBanner } from "@/components/arena/stage";
+import { slotArt } from "@/lib/characters";
 import { ConfigPanel } from "@/components/arena/ConfigPanel";
 import {
   HttpMonitor,
@@ -35,8 +37,6 @@ import {
   TranscriptPanel,
 } from "@/components/arena/panels";
 import { useSettings } from "@/components/arena/SettingsProvider";
-import { useDebate } from "@/lib/debate/useDebate";
-import { useSpeech } from "@/lib/debate/useSpeech";
 import {
   agentMood,
   effectiveRound,
@@ -67,13 +67,18 @@ export const Route = createFileRoute("/arena")({
 
 function ControlArena() {
   const { settings, updateSettings, resetSettings } = useSettings();
-  const debate = useDebate(settings);
-  const speech = useSpeech(settings, debate.messages);
+  const { debate, speech } = useDebateRuntime();
 
   const [input, setInput] = useState("");
   const [autoFollow, setAutoFollow] = useState(true);
 
   const names = { alpha: settings.alpha.name, beta: settings.beta.name };
+
+  // Stage art follows the stored character only, so editing a prompt or slider
+  // never swaps the avatar mid-session.
+  const alphaArt = slotArt(settings.alpha, "alpha");
+  const betaArt = slotArt(settings.beta, "beta");
+
   const isArabic = settings.language === "ar";
   const samples = isArabic ? SAMPLE_TOPICS_AR : SAMPLE_TOPICS;
 
@@ -95,6 +100,7 @@ function ControlArena() {
 
   const running = debate.phase === "running";
   const started = debate.phase !== "idle" || debate.messages.length > 0;
+  const visibleInput = started ? debate.topic : input;
 
   const start = useCallback(() => {
     const topic = input.trim();
@@ -171,18 +177,14 @@ function ControlArena() {
         statusLabel={runtimeLabel(state, debate.usingSimulation)}
       />
 
-      {/* Stage band — the reference characters, at a height that leaves room
-          for the instrumentation below. */}
       <section
-        // overflow-hidden clips the absolutely-positioned character art, which
-        // would otherwise push the page wider than the viewport. On `/` the
-        // h-screen shell already clips it.
         className="relative h-[26vh] min-h-[180px] shrink-0 overflow-hidden rounded-xl sm:h-[34vh]"
         aria-label="Debate stage"
       >
         <AgentStage
           label={`${names.alpha}, arguing for the motion`}
-          img={AGENT_ART.alpha[agentMood("alpha", speaking, proTotal, conTotal)]}
+          img={alphaArt.art[agentMood("alpha", speaking, proTotal, conTotal)]}
+          flip={alphaArt.flip}
           lit={speaking === "alpha"}
           dim={speaking === "beta"}
           position="left"
@@ -190,7 +192,8 @@ function ControlArena() {
         />
         <AgentStage
           label={`${names.beta}, arguing against the motion`}
-          img={AGENT_ART.beta[agentMood("beta", speaking, conTotal, proTotal)]}
+          img={betaArt.art[agentMood("beta", speaking, conTotal, proTotal)]}
+          flip={betaArt.flip}
           lit={speaking === "beta"}
           dim={speaking === "alpha"}
           position="right"
@@ -207,6 +210,7 @@ function ControlArena() {
               personaTitle={persona.title}
               leanPercent={leanPercent(proTotal, conTotal)}
               provisional={debate.scorecard?.interim}
+              compact
             />
           ) : (
             <p className="text-[11px] tracking-[0.3em] text-muted-foreground uppercase">
@@ -216,7 +220,6 @@ function ControlArena() {
         </div>
       </section>
 
-      {/* Transport */}
       <section className="arena-panel space-y-3 rounded-xl p-4" aria-label="Transport controls">
         <div className="flex flex-wrap gap-2">
           <label htmlFor="topic" className="sr-only">
@@ -224,7 +227,7 @@ function ControlArena() {
           </label>
           <Input
             id="topic"
-            value={input}
+            value={visibleInput}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") start();

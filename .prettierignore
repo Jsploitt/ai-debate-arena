@@ -6,3 +6,7 @@ pnpm-lock.yaml
 package-lock.json
 bun.lock
 routeTree.gen.ts
+
+# Verdict templates are authored artwork, not source. Prettier restructures
+# their markup and shifts the vh-based layout they depend on.
+src/lib/verdict/templates/*.html

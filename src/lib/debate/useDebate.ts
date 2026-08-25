@@ -3,6 +3,7 @@ import { checkHealth, listModels, resolveModelName, streamChat } from "./ollamaC
 import { simulateStream, simulatedTurnText } from "./simulation";
 import { buildRequestBody } from "./ollamaClient";
 import { runLiveJudge, simulateJudge } from "./judge";
+import { TURN_SCHEMA, spokenText } from "./spokenText";
 import { LANGUAGE_INSTRUCTION, THINKING_INSTRUCTION } from "./presets";
 
 import type {
@@ -27,17 +28,132 @@ export type Slot = Side | "judge";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-function splitReasoning(raw: string) {
-  const open = raw.indexOf("<think>");
-  if (open === -1) return { reasoning: "", content: raw };
-  const close = raw.indexOf("</think>");
-  if (close === -1) {
-    return { reasoning: raw.slice(open + 7), content: "" };
+/**
+ * The hard per-turn word budget, enforced by the engine rather than trusted to
+ * the prompt. Local models routinely blow through a "keep it under N words"
+ * instruction, so the stream is stopped once the sentence that crosses this
+ * budget completes — see `clipAtSentenceEnd`.
+ */
+export const TURN_WORD_LIMIT = 50;
+
+/**
+ * How far past the budget a turn may run while waiting for the current
+ * sentence to end. A model that stops punctuating entirely would otherwise
+ * stream forever; at this ceiling the turn is cut at the last whitespace,
+ * which is the one case where a clean sentence end is not on offer.
+ */
+const TURN_WORD_CEILING = TURN_WORD_LIMIT * 2;
+
+const wordCount = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
+
+/**
+ * Clip a streaming turn at the end of the sentence that crosses the word
+ * budget.
+ *
+ * Returns `null` while the text is still within budget, or over budget but
+ * mid-sentence — the caller keeps streaming. Once the crossing sentence ends
+ * (`. ! ? ؟ …`, Latin or Arabic), the clipped text is returned and the caller
+ * stops the stream. The turn therefore never cuts mid-word or mid-sentence;
+ * it simply doesn't get to start another sentence.
+ */
+export function clipAtSentenceEnd(text: string, limit = TURN_WORD_LIMIT): string | null {
+  if (wordCount(text) <= limit) return null;
+
+  const boundary = /[.!?؟…]+["'”»)]*(?=\s|$)/g;
+  let match: RegExpExecArray | null;
+  while ((match = boundary.exec(text)) !== null) {
+    const prefix = text.slice(0, match.index + match[0].length);
+    if (wordCount(prefix) >= limit) return prefix.trim();
   }
-  return {
-    reasoning: raw.slice(open + 7, close).trim(),
-    content: (raw.slice(0, open) + raw.slice(close + 8)).trim(),
-  };
+
+  // No sentence end since the budget was crossed. Give the sentence room, but
+  // not forever: at the ceiling, fall back to the last whole word.
+  if (wordCount(text) >= TURN_WORD_CEILING) {
+    const words = text.trim().split(/\s+/).slice(0, TURN_WORD_CEILING);
+    return words.join(" ");
+  }
+  return null;
+}
+
+/**
+ * Separate a model's private reasoning from what it actually says on stage.
+ *
+ * Matching only a literal `<think>`…`</think>` pair is not enough. Models
+ * reliably produce three other shapes, and every one of them has reached the
+ * stage, the voice queue and the judge transcript, because all three read
+ * `message.content`:
+ *
+ *   - a bare `[Thinking: …]` / `Assumptions: … Rebuttal:` preamble in prose;
+ *   - `<think>` closed with a stray `>` instead of `</think>`;
+ *   - `<think>` never closed at all.
+ *
+ * The unterminated cases are resolved by looking for where the reasoning stops
+ * sounding like notes — a blank line, or the closing bracket — and treating
+ * everything after it as speech.
+ */
+function splitReasoning(raw: string) {
+  let text = raw;
+  const reasoning: string[] = [];
+
+  // Well-formed pairs first.
+  text = text.replace(/<think>([\s\S]*?)<\/think>/gi, (_m, inner: string) => {
+    reasoning.push(inner.trim());
+    return "";
+  });
+
+  // `<think>` opened but not yet closed — the normal state of every chunk while
+  // a reasoning model streams, since `</think>` only arrives once it starts
+  // answering.
+  //
+  // Everything after the tag is reasoning until a close appears. A stray `>`
+  // counts as a close, because some models emit that instead of `</think>`.
+  //
+  // A blank line does NOT count, and treating it as one was a real leak:
+  // qwen3's reasoning is paragraphed prose, so the first `\n\n` split its
+  // scratchpad in half and put the remainder on stage mid-turn. It vanished
+  // the moment `</think>` arrived, which is why it never showed up in
+  // end-of-turn checks — it only flashed while the turn was generating.
+  const open = text.search(/<think>/i);
+  if (open !== -1) {
+    const rest = text.slice(open + 7);
+    const stop = rest.search(/(?<![-<])>\s/);
+    if (stop === -1) {
+      reasoning.push(rest.trim());
+      text = text.slice(0, open);
+    } else {
+      reasoning.push(rest.slice(0, stop).trim());
+      text = text.slice(0, open) + rest.slice(stop).replace(/^>\s/, "");
+    }
+  }
+
+  // A bracketed prose preamble: `[Thinking: … ]`.
+  text = text.replace(/\[\s*(?:thinking|thought|reasoning)\s*:[\s\S]*?\]/gi, (m) => {
+    reasoning.push(m.trim());
+    return "";
+  });
+
+  // An unbracketed notes preamble, e.g. "Assumptions: … Rebuttal: …".
+  const notes = text.match(/^\s*(?:assumptions|thinking|reasoning|plan)\s*:[\s\S]*?(?:\n\s*\n|$)/i);
+  if (notes) {
+    reasoning.push(notes[0].trim());
+    text = text.slice(notes[0].length);
+  }
+
+  return { reasoning: reasoning.join("\n").trim(), content: text.trim() };
+}
+
+/**
+ * The visible words and the private reasoning for one turn.
+ *
+ * Two layers, in order. `splitReasoning` peels off any `<think>` block —
+ * Ollama reports a reasoning model's scratchpad separately and `parseLine`
+ * re-wraps it in those tags, so it is still there even under constrained
+ * decoding. What remains is the model's actual message: constrained JSON on a
+ * live turn, plain prose in simulation.
+ */
+function parseTurn(raw: string, live: boolean) {
+  const parts = splitReasoning(raw);
+  return live ? { content: spokenText(parts.content), reasoning: parts.reasoning } : parts;
 }
 
 function systemFor(
@@ -45,6 +161,7 @@ function systemFor(
   topic: string,
   side: Side,
   language: DebateLanguage = "en",
+  opening = false,
 ) {
   const stance =
     side === "alpha" ? "You argue FOR the resolution." : "You argue AGAINST the resolution.";
@@ -54,9 +171,22 @@ function systemFor(
     `Resolution: "${topic}"`,
     "Speak in first person, directly and only as yourself — never in the third person, and never narrate or describe your own argument from the outside.",
     'Do NOT write phrases like "Debater Alpha argues", "my rebuttal shows", "Alpha\'s case is" or any other self-referential label — those make you sound like a report about the debate, not a participant in it.',
-    'Talk straight to your opponent using "you"/"your", as if replying to what they just said, the way a real person would in a live argument. Never describe the debate\'s structure or rounds.',
+    opening
+      ? 'This is the FIRST thing said in the debate. Your opponent has not spoken yet, so you have nothing to reply to: do not open with "you claim", "you assume", "you\'re wrong" or any other response to an argument that does not exist. State your own case from scratch.'
+      : 'Talk straight to your opponent using "you"/"your", as if replying to what they just said, the way a real person would in a live argument. Never describe the debate\'s structure or rounds.',
     'Never refer to your opponent by any name or label (not "Beta", "Alpha", "my opponent", "Debater X", etc.) — call them "you" every time, exactly like a real person arguing face to face never says the other person\'s debate title out loud.',
     "Respond with one focused argument. Never role-play the opponent. Never use bullet lists.",
+    `Hard limit: ${TURN_WORD_LIMIT} words per turn. The stage microphone cuts off at the end of the sentence that crosses that limit, so land your strongest point early and stop — a short, complete argument always beats a long one that gets cut.`,
+    // Openers kept arriving as invented anecdotes -- a named colleague, then a
+    // named customer ("Fatima in Riyadh") with a timestamp and a metric. None
+    // of it is real, none of it has context, and it reads as nonsense on stage.
+    'Never name an individual person. No colleagues, customers, users or contacts -- invented or real. Refer to people only by role ("a merchant", "an engineering team").',
+    'Never invent an anecdote or claim something happened: no "this morning", no calls you took, no conversations you had, no internal metrics or figures about your opponent\'s company. You have no inside information and no private examples.',
+    "Do not attribute specific actions or statistics to named real companies. Reason about the industry in general terms instead.",
+    // This runs in front of a live audience, so the register matters as much as
+    // the argument. Disagree with the position, never disparage people.
+    'Stay courteous and professional throughout. Argue hard against the IDEA, never against your opponent as a person: no insults, no sneering, no contempt, and no dismissive labels for any group of people ("freeloaders" and the like). Nothing you say should be capable of offending anyone in the room.',
+    "Keep the tone measured and constructive, the way two executives disagree in a boardroom — confident and direct, never combative.",
     THINKING_INSTRUCTION[Math.min(config.thinkingLevel, THINKING_INSTRUCTION.length - 1)],
     LANGUAGE_INSTRUCTION[language],
   ]
@@ -112,6 +242,16 @@ export function useDebate(settings: ArenaSettings) {
   const busyRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const historyRef = useRef<Record<Side, ChatMessage[]>>({ alpha: [], beta: [] });
+  /**
+   * Finalized turns, updated synchronously the moment a turn completes.
+   *
+   * The judge must not read `messagesRef` for this: that ref mirrors React
+   * state, which only commits on the next render — so a judge invoked right
+   * after `runTurn` returned still saw the just-finished turn as streaming.
+   * Every interim therefore scored one turn behind, and the final verdict
+   * was computed with the last turn missing from the transcript entirely.
+   */
+  const transcriptRef = useRef<DebateMessage[]>([]);
 
   const log = useCallback((kind: LogKind, side: Side | "system", text: string) => {
     setLogs((prev) => {
@@ -182,7 +322,10 @@ export function useDebate(settings: ArenaSettings) {
       }
 
       const payload: ChatMessage[] = [
-        { role: "system", content: systemFor(config, topicValue, side, s.language) },
+        {
+          role: "system",
+          content: systemFor(config, topicValue, side, s.language, index === 0),
+        },
         ...historyRef.current[side],
       ];
 
@@ -225,9 +368,15 @@ export function useDebate(settings: ArenaSettings) {
       let evalCount = 0;
       let promptTokens = 0;
       let chunkCount = 0;
+      // Set once the visible content crosses the word budget and its final
+      // sentence completes; from then on this is the turn's whole text.
+      let clippedContent: string | null = null;
 
       const iterator = live
-        ? streamChat(config, payload, controller.signal)
+        ? // Constrained decoding: the grammar only permits {"argument": "..."},
+          // so a preamble, a `<think>` block or a trailing "(47 words)" has
+          // nowhere to be emitted. See lib/debate/spokenText.ts.
+          streamChat(config, payload, controller.signal, { format: TURN_SCHEMA })
         : simulateStream(
             simulatedTurnText(topicValue, side, index >> 1, s.language),
             config.model,
@@ -244,14 +393,16 @@ export function useDebate(settings: ArenaSettings) {
             }
             raw += chunk.content;
             evalCount += 1;
-            const parts = splitReasoning(raw);
+            const parts = parseTurn(raw, live);
+            clippedContent = clipAtSentenceEnd(parts.content);
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === messageId
-                  ? { ...m, content: parts.content, reasoning: parts.reasoning }
+                  ? { ...m, content: clippedContent ?? parts.content, reasoning: parts.reasoning }
                   : m,
               ),
             );
+            if (clippedContent !== null) break;
           }
           chunkCount += 1;
           if (chunkCount % 6 === 0 || chunk.done) {
@@ -281,22 +432,35 @@ export function useDebate(settings: ArenaSettings) {
             }
             raw += chunk.content;
             evalCount += 1;
-            const parts = splitReasoning(raw);
+            const parts = parseTurn(raw, live);
+            clippedContent = clipAtSentenceEnd(parts.content);
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === messageId
-                  ? { ...m, content: parts.content, reasoning: parts.reasoning }
+                  ? { ...m, content: clippedContent ?? parts.content, reasoning: parts.reasoning }
                   : m,
               ),
             );
+            if (clippedContent !== null) break;
           }
           if (chunk.evalCount) evalCount = chunk.evalCount;
           if (chunk.promptEvalCount) promptTokens = chunk.promptEvalCount;
         }
       }
 
+      // A clipped turn leaves the request streaming server-side; stop it so
+      // the runtime is not still generating a turn nobody will see.
+      if (clippedContent !== null) {
+        controller.abort();
+        log(
+          "info",
+          side,
+          `Turn reached the ${TURN_WORD_LIMIT}-word limit — stopped at the sentence end.`,
+        );
+      }
+
       const durationMs = performance.now() - started;
-      const parts = splitReasoning(raw);
+      const parts = parseTurn(raw, live);
       const telemetry: Telemetry = {
         ttftMs: Math.round(ttft),
         tokensPerSec: durationMs > 0 ? +(evalCount / (durationMs / 1000)).toFixed(1) : 0,
@@ -305,13 +469,14 @@ export function useDebate(settings: ArenaSettings) {
         durationMs: Math.round(durationMs),
       };
 
+      const spoken = clippedContent ?? (parts.content || raw);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId
             ? {
                 ...m,
                 streaming: false,
-                content: parts.content || raw,
+                content: spoken,
                 reasoning: parts.reasoning,
                 telemetry,
               }
@@ -322,8 +487,16 @@ export function useDebate(settings: ArenaSettings) {
       setContextTokens((prev) => prev + evalCount + (promptTokens || Math.round(raw.length / 4)));
       setStatus((prev) => ({ ...prev, [side]: "idle" }));
 
-      const spoken = parts.content || raw;
       historyRef.current[side].push({ role: "assistant", content: spoken });
+      transcriptRef.current.push({
+        id: messageId,
+        side,
+        round,
+        content: spoken,
+        reasoning: parts.reasoning,
+        streaming: false,
+        telemetry,
+      });
       const other: Side = side === "alpha" ? "beta" : "alpha";
       historyRef.current[other].push({
         role: "user",
@@ -345,100 +518,165 @@ export function useDebate(settings: ArenaSettings) {
   const messagesRef = useRef<DebateMessage[]>([]);
   messagesRef.current = messages;
 
+  const scorecardRef = useRef<JudgeScorecard | null>(null);
+  scorecardRef.current = scorecard;
+
   const judgeSeqRef = useRef(0);
 
+  /**
+   * Commit only the side that just spoke.
+   *
+   * A live update rescores the whole transcript, so both totals used to jump
+   * together after every turn and it was impossible to see who had just been
+   * awarded what. Keeping the other side's numbers frozen means points land
+   * on one debater, right after their own turn.
+   */
+  const mergeSide = useCallback((next: JudgeScorecard, side: Side | null): JudgeScorecard => {
+    const prev = scorecardRef.current;
+    if (!side || !prev) return next;
+    const other: Side = side === "alpha" ? "beta" : "alpha";
+    return { ...next, [other]: prev[other] } as JudgeScorecard;
+  }, []);
+
+  /**
+   * Judge runs are serialized, never cancelled.
+   *
+   * The old behaviour bumped a sequence number per call and discarded any
+   * in-flight run's result. Simulation never noticed — its judge is
+   * synchronous — but a real judge model takes seconds per interim, so on
+   * live hardware each new turn's judge request would have killed the
+   * previous one and the scoreboard would barely have moved. Now one job
+   * runs at a time; while it runs, the newest request waits in a single
+   * pending slot (a final replaces a pending interim, never the reverse).
+   * Collapsed interims re-snapshot the transcript when they finally run, so
+   * a slow judge lags but never scores stale data — and when two different
+   * sides' interims collapse into one, the side-freeze is dropped so both
+   * columns move. `judgeSeqRef` is now bumped only by start/reset, where it
+   * invalidates every outstanding job.
+   */
+  const judgeBusyRef = useRef(false);
+  const judgePendingRef = useRef<{ interim: boolean; onlySide: Side | null } | null>(null);
+
   const judgeDebate = useCallback(
-    async (interim = false) => {
+    async (interim = false, onlySide: Side | null = null) => {
       const s = settingsRef.current;
-      const transcript = messagesRef.current.filter((m) => !m.streaming && m.content.trim());
+      // transcriptRef, not messagesRef: the state mirror lags a render behind,
+      // which made every judge run score with the just-finished turn missing.
+      const transcript = transcriptRef.current.filter((m) => m.content.trim());
       if (!s.judge.enabled || transcript.length < 1 || !topicRef.current) return;
 
-      const seq = ++judgeSeqRef.current;
+      if (judgeBusyRef.current) {
+        const pending = judgePendingRef.current;
+        if (pending && !pending.interim && interim) return; // never demote a waiting final
+        judgePendingRef.current = {
+          interim: pending ? pending.interim && interim : interim,
+          onlySide: pending && pending.onlySide !== onlySide ? null : onlySide,
+        };
+        return;
+      }
+      judgeBusyRef.current = true;
+
+      const seq = judgeSeqRef.current;
       const names: Record<Side, string> = { alpha: s.alpha.name, beta: s.beta.name };
       setJudging(true);
-      // Keep the previous scorecard visible while a live update is computed.
-      if (!interim) setScorecard(null);
-      log(
-        "info",
-        "system",
-        interim
-          ? `AI Judge updating live score after ${transcript.length} turns…`
-          : "AI Judge is scoring the debate…",
-      );
+      try {
+        // Keep the previous scorecard visible while ANY update is computed. The
+        // final run used to blank it, so the scoreboard flashed 0.0 / 0.0 for a
+        // few seconds right before the verdict landed.
+        log(
+          "info",
+          "system",
+          interim
+            ? `AI Judge updating live score after ${transcript.length} turns…`
+            : "AI Judge is scoring the debate…",
+        );
 
-      if (!usingSimulationRef.current) {
-        try {
-          const judgeConfig = resolvedRef.current.judge
-            ? { ...s.judge, model: resolvedRef.current.judge }
-            : s.judge;
-          log(
-            "request",
-            "system",
-            `POST ${judgeConfig.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${judgeConfig.model} temperature=${judgeConfig.temperature}`,
-          );
-          const { scorecard: live, raw } = await runLiveJudge(
-            judgeConfig,
-            topicRef.current,
-            transcript,
-            names,
-            undefined,
-            (rawChunk) => {
-              try {
-                const parsed = JSON.parse(rawChunk) as { model?: string };
-                if (parsed.model) setResolved("judge", parsed.model);
-              } catch {
-                /* non-JSON keepalive line */
-              }
-            },
-            interim,
-            s.language,
-            (partial) => {
-              // Live-stream the verdict + scorecard as the judge writes it.
-              if (seq !== judgeSeqRef.current) return;
-              setScorecard(partial);
-            },
-          );
-          if (seq !== judgeSeqRef.current) return;
-          if (live) {
-            setScorecard(live);
+        if (!usingSimulationRef.current) {
+          try {
+            const judgeConfig = resolvedRef.current.judge
+              ? { ...s.judge, model: resolvedRef.current.judge }
+              : s.judge;
             log(
-              "info",
+              "request",
               "system",
-              `AI Judge ${interim ? "running leader" : "verdict"}: ${live.winner.toUpperCase()}.`,
+              `POST ${judgeConfig.endpoint} (AI Judge${interim ? " · live update" : ""})\nmodel=${judgeConfig.model} temperature=${judgeConfig.temperature}`,
             );
-            setJudging(false);
-            return;
+            const { scorecard: live, raw } = await runLiveJudge(
+              judgeConfig,
+              topicRef.current,
+              transcript,
+              names,
+              undefined,
+              (rawChunk) => {
+                try {
+                  const parsed = JSON.parse(rawChunk) as { model?: string };
+                  if (parsed.model) setResolved("judge", parsed.model);
+                } catch {
+                  /* non-JSON keepalive line */
+                }
+              },
+              interim,
+              s.language,
+              (partial) => {
+                if (seq !== judgeSeqRef.current) return;
+                // Interim updates land as ONE discrete change when the judge
+                // finishes, right after the scored turn — streaming them made
+                // the scoreboard drift continuously while a debater was still
+                // speaking. Only the final verdict streams in live, when the
+                // floor is already silent.
+                if (interim) return;
+                setScorecard(mergeSide(partial, onlySide));
+              },
+            );
+            if (seq !== judgeSeqRef.current) return;
+            if (live) {
+              setScorecard(mergeSide(live, onlySide));
+              log(
+                "info",
+                "system",
+                `AI Judge ${interim ? "running leader" : "verdict"}: ${live.winner.toUpperCase()}.`,
+              );
+              setJudging(false);
+              return;
+            }
+            log(
+              "error",
+              "system",
+              `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`,
+            );
+          } catch (error) {
+            if (seq !== judgeSeqRef.current) return;
+            const msg = error instanceof Error ? error.message : String(error);
+            log("error", "system", `AI Judge request failed (${msg}) — using simulated scoring.`);
           }
-          log(
-            "error",
-            "system",
-            `Judge returned unparsable output, using heuristic scoring. Raw: ${raw.slice(0, 200)}`,
-          );
-        } catch (error) {
-          if (seq !== judgeSeqRef.current) return;
-          const msg = error instanceof Error ? error.message : String(error);
-          log("error", "system", `AI Judge request failed (${msg}) — using simulated scoring.`);
+        }
+
+        if (seq !== judgeSeqRef.current) return;
+        const simulated = simulateJudge(
+          topicRef.current,
+          transcript,
+          names,
+          s.judge,
+          interim,
+          s.language,
+        );
+        setScorecard(mergeSide(simulated, onlySide));
+        log(
+          "info",
+          "system",
+          `AI Judge (simulated) ${interim ? "running leader" : "verdict"}: ${simulated.winner.toUpperCase()}.`,
+        );
+        setJudging(false);
+      } finally {
+        judgeBusyRef.current = false;
+        const pending = judgePendingRef.current;
+        judgePendingRef.current = null;
+        if (pending && seq === judgeSeqRef.current) {
+          void judgeDebate(pending.interim, pending.onlySide);
         }
       }
-
-      if (seq !== judgeSeqRef.current) return;
-      const simulated = simulateJudge(
-        topicRef.current,
-        transcript,
-        names,
-        s.judge,
-        interim,
-        s.language,
-      );
-      setScorecard(simulated);
-      log(
-        "info",
-        "system",
-        `AI Judge (simulated) ${interim ? "running leader" : "verdict"}: ${simulated.winner.toUpperCase()}.`,
-      );
-      setJudging(false);
     },
-    [log, setResolved],
+    [log, setResolved, mergeSide],
   );
 
   const loop = useCallback(async () => {
@@ -447,9 +685,9 @@ export function useDebate(settings: ArenaSettings) {
     const total = settingsRef.current.rounds * 2;
     while (runningRef.current && turnRef.current < total) {
       await runTurn(turnRef.current);
-      // Live scoring: refresh the running scorecard after every completed turn.
+      // Live scoring: score the side that just spoke, on its own.
       if (turnRef.current < total) {
-        void judgeDebate(true);
+        void judgeDebate(true, turnRef.current % 2 === 0 ? "beta" : "alpha");
       }
     }
     busyRef.current = false;
@@ -500,6 +738,7 @@ export function useDebate(settings: ArenaSettings) {
       topicRef.current = trimmed;
       setTopic(trimmed);
       historyRef.current = { alpha: [], beta: [] };
+      transcriptRef.current = [];
       turnRef.current = 0;
       setTurnIndex(0);
       setMessages([]);
@@ -544,8 +783,8 @@ export function useDebate(settings: ArenaSettings) {
     if (turnRef.current >= total) {
       setPhase("finished");
       void judgeDebate();
-    } else if (turnRef.current % 2 === 0) {
-      void judgeDebate(true);
+    } else {
+      void judgeDebate(true, turnRef.current % 2 === 0 ? "beta" : "alpha");
     }
   }, [runTurn, judgeDebate]);
 
@@ -556,6 +795,7 @@ export function useDebate(settings: ArenaSettings) {
     turnRef.current = 0;
     topicRef.current = "";
     historyRef.current = { alpha: [], beta: [] };
+    transcriptRef.current = [];
     setTopic("");
     setTurnIndex(0);
     setMessages([]);

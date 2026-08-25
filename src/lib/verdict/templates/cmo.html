@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="{{lang}}" dir="{{dir}}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brand & Growth Verdict</title>
+<style>
+  :root{
+    --bg:#1A0F0C; --panel:#241512; --accent:#E85D3D; --ink:#F3E8E2; --dim:#A8897E; --line:#3A2620;
+  }
+  *{box-sizing:border-box}
+  @keyframes fadeUp{
+    from{opacity:0; transform:translateY(6px)}
+    to{opacity:1; transform:translateY(0)}
+  }
+  @keyframes fillBar{ from{width:0%} }
+  html,body{height:100%; margin:0; overflow:hidden}
+  body{
+    background:var(--bg); color:var(--ink); font-family:"Helvetica Neue",Arial,sans-serif;
+  }
+  .wrap{
+    height:100vh; width:100vw; padding:2.4vh 2.6vw; display:flex; flex-direction:column;
+    gap:1.3vh;
+  }
+  .head{
+    display:flex; align-items:center; gap:12px; animation:fadeUp .4s ease both;
+    flex:0 0 auto;
+  }
+  .icon{
+    width:clamp(30px,4vh,42px); height:clamp(30px,4vh,42px); border-radius:50%;
+    background:var(--panel); border:1px solid var(--accent);
+    display:flex; align-items:center; justify-content:center; color:var(--accent); flex-shrink:0;
+  }
+  .icon svg{width:56%;height:56%}
+  .head-text .eyebrow{
+    text-transform:uppercase; letter-spacing:.1em; font-size:clamp(10px,1.3vh,13px);
+    color:var(--accent); font-weight:700; margin-bottom:2px;
+  }
+  .head-text h1{font-size:clamp(20px,3.4vh,32px); margin:0; font-weight:700; line-height:1.1}
+  .context{
+    color:var(--dim); font-size:clamp(13px,2vh,18px); padding-left:12px;
+    border-left:2px solid var(--accent); flex:0 0 auto;
+    animation:fadeUp .4s ease .04s both;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .winner{
+    display:flex; justify-content:space-between; align-items:center;
+    border:1px solid var(--accent); border-radius:8px;
+    padding:1.2vh 16px;
+    background:linear-gradient(90deg, #241512 0%, #1A0F0C 100%);
+    animation:fadeUp .4s ease .06s both; flex:0 0 auto;
+  }
+  .winner .name{font-size:clamp(18px,3vh,26px); font-weight:700}
+  .winner .tag{
+    font-size:clamp(9px,1.2vh,11.5px); letter-spacing:.1em; text-transform:uppercase; color:var(--accent);
+    border:1px solid var(--accent); padding:3px 9px; border-radius:20px; flex-shrink:0;
+  }
+  .grid{
+    flex:1 1 auto; min-height:0; display:grid;
+    grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
+    gap:1.2vh 1.3vw;
+  }
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:1.3vh 16px; animation:fadeUp .4s ease both; min-height:0;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .panel h2{
+    font-size:clamp(14px,2vh,19px); text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent); margin:0 0 .8vh; font-weight:700; flex:0 0 auto;
+  }
+  ul{margin:0; padding:0; list-style:none; overflow:hidden; flex:1 1 auto; display:flex; flex-direction:column; justify-content:space-around}
+  li{
+    margin-bottom:.55vh; font-size:clamp(17px,2.7vh,25px); padding-left:13px; position:relative;
+    line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  li::before{content:"◆"; position:absolute; left:0; top:.4em; color:var(--accent); font-size:6px}
+  .reasons{overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; flex:1 1 auto; min-height:0}
+  .reason .txt{
+    font-size:clamp(16px,2.4vh,22px); margin-bottom:.35vh; padding-left:13px; position:relative;
+    line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .reason .txt::before{content:"◆"; position:absolute; left:0; top:.4em; color:var(--accent); font-size:6px}
+  .bar-track{height:4px; background:var(--line); border-radius:3px; overflow:hidden}
+  .bar-fill{
+    height:100%; background:var(--accent); border-radius:3px;
+    animation:fillBar 1s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .verdict-panel{justify-content:center}
+  .verdict{
+    font-size:clamp(18px,3vh,29px); color:var(--ink); font-style:italic;
+    border-left:2px solid var(--accent); padding-left:13px; line-height:1.35;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .fill{color:var(--dim); font-style:normal}
+
+  @media (max-width:680px){
+    .wrap{padding:2vh 4vw; gap:1.1vh}
+    .grid{grid-template-columns:1fr; grid-template-rows:repeat(4,1fr); gap:1vh}
+    .context{white-space:normal}
+    li{-webkit-line-clamp:1; font-size:clamp(11px,2.4vh,14px)}
+    .reason .txt{font-size:clamp(16px,2.4vh,22px)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16l6-6 4 4 8-8"/><path d="M15 6h6v6"/></svg></div>
+    <div class="head-text">
+      <div class="eyebrow">Judge Perspective — Chief Marketing Officer</div>
+      <h1>Brand & Growth Verdict</h1>
+    </div>
+  </div>
+  <div class="context fill">{{topic}}</div>
+
+  <div class="winner">
+    <span class="name fill">{{winner}}</span>
+    <span class="tag">{{winnerTag}}</span>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>What To Do Next</h2>
+      <ul>
+        <li>{{next1}}</li>
+      <li>{{next2}}</li>
+      <li>{{next3}}</li>
+      <li>{{next4}}</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>Why This Argument Wins</h2>
+      <div class="reasons">
+        <div class="reason">
+      <div class="txt fill">{{reason1}}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:{{bar1}}%; animation-delay:0.25s"></div></div>
+    </div>
+    <div class="reason">
+      <div class="txt fill">{{reason2}}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:{{bar2}}%; animation-delay:0.37s"></div></div>
+    </div>
+    <div class="reason">
+      <div class="txt fill">{{reason3}}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:{{bar3}}%; animation-delay:0.49s"></div></div>
+    </div>
+    <div class="reason">
+      <div class="txt fill">{{reason4}}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:{{bar4}}%; animation-delay:0.61s"></div></div>
+    </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Points to Watch</h2>
+      <ul>
+        <li>{{watch1}}</li>
+      <li>{{watch2}}</li>
+      <li>{{watch3}}</li>
+      <li>{{watch4}}</li>
+      </ul>
+    </div>
+
+    <div class="panel verdict-panel">
+      <h2>Final Verdict</h2>
+      <p class="verdict fill">"{{verdict}}"</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

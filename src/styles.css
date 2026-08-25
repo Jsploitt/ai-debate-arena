@@ -63,7 +63,9 @@
 
 :root {
   --radius: 0.5rem;
-  --background: oklch(0.17 0.035 252);
+  /* Deep blue, not near-black: the canvas needs visible colour in it or the
+     whole stage reads flat. Nudged toward Dell midnight territory. */
+  --background: oklch(0.19 0.052 256);
   --foreground: oklch(0.96 0.006 250);
   --card: oklch(0.22 0.036 254);
   --card-foreground: oklch(0.96 0.006 250);
@@ -222,6 +224,26 @@
   animation: bubble-pop 0.35s ease-out;
 }
 
+/*
+ * The previous turn leaving the stage: pushed up and faded as the new turn
+ * pops in below it. `forwards` holds the final frame so the bubble cannot
+ * flash back at full opacity in the tick before React unmounts it.
+ */
+@keyframes bubble-exit {
+  from {
+    opacity: 0.7;
+    transform: translateY(0) scale(0.95);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-55vh) scale(0.9);
+  }
+}
+
+@utility bubble-exit {
+  animation: bubble-exit 0.6s ease-in forwards;
+}
+
 @keyframes beam-flicker {
   0%,
   100% {
@@ -232,20 +254,106 @@
   }
 }
 
+/*
+ * The cone holds most of its brightness for the first half and never fully
+ * dies before the floor, so the light visibly lands ON the character instead
+ * of evaporating above their head. The beam element overshoots the top of the
+ * viewport (see AgentStage), so the bright head must extend well past the
+ * on-screen top.
+ */
 @utility spotlight-beam {
   background: linear-gradient(
     to bottom,
-    oklch(0.85 0.09 235 / 0.55),
-    oklch(0.8 0.1 240 / 0.16) 45%,
-    transparent 85%
+    oklch(0.85 0.09 235 / 0.6),
+    oklch(0.83 0.095 237 / 0.45) 45%,
+    oklch(0.78 0.1 240 / 0.24) 75%,
+    oklch(0.75 0.11 242 / 0.09) 100%
   );
-  clip-path: polygon(38% 0%, 62% 0%, 100% 100%, 0% 100%);
+  clip-path: polygon(42% 0%, 58% 0%, 100% 100%, 0% 100%);
   animation: beam-flicker 3.2s ease-in-out infinite;
   filter: blur(2px);
 }
 
 @utility stage-floor {
-  background: radial-gradient(ellipse 60% 100% at 50% 0%, oklch(0.62 0.15 245 / 0.35), transparent);
+  background: radial-gradient(ellipse 60% 100% at 50% 0%, oklch(0.64 0.15 245 / 0.5), transparent);
+}
+
+/*
+ * The stage floor itself: a thin lit edge running the width of the stage with
+ * a soft wash below it. The figures' feet sit on this line (AgentStage lifts
+ * them by the strip's height), which is what finally makes the void read as a
+ * room with a floor instead of characters pasted onto a backdrop. Sits at
+ * z-2, above the vignette, or the darkened stage edges swallow the line.
+ */
+@utility stage-horizon {
+  border-top: 1px solid oklch(0.72 0.13 242 / 0.45);
+  background:
+    linear-gradient(
+      to bottom,
+      oklch(0.68 0.14 244 / 0.16),
+      oklch(0.62 0.15 245 / 0.05) 55%,
+      transparent
+    ),
+    radial-gradient(ellipse 55% 140% at 50% 0%, oklch(0.62 0.15 245 / 0.2), transparent 72%);
+  mask-image: linear-gradient(to right, transparent, black 9%, black 91%, transparent);
+}
+
+/*
+ * Quiet futuristic set dressing behind the whole presentation stage: a fine
+ * grid that resolves out of the floor and fades away upward, plus a soft
+ * horizon wash where the figures stand. Alphas are kept low on purpose — this
+ * is texture for the void, not a pattern the eye should land on. Static by
+ * design, so there is nothing for reduced-motion to stand down.
+ */
+@utility stage-backdrop {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(
+        to bottom,
+        transparent 52%,
+        oklch(0.62 0.15 245 / 0.06) 80%,
+        oklch(0.62 0.15 245 / 0.13) 100%
+      ),
+      repeating-linear-gradient(to right, oklch(0.7 0.12 245 / 0.05) 0 1px, transparent 1px 76px),
+      repeating-linear-gradient(to top, oklch(0.7 0.12 245 / 0.05) 0 1px, transparent 1px 76px);
+    mask-image: radial-gradient(ellipse 95% 85% at 50% 100%, black, transparent 78%);
+  }
+}
+
+/**
+ * Darkens the edges of the stage so the eye lands on the speaker rather than
+ * on the figures' outer shoulders.
+ *
+ * Applied to the full-viewport `main`, not to the stage section. Confined to
+ * the section it terminates at that element's bounds, and the step between
+ * darkened section and undarkened page reads as a visible rectangle.
+ *
+ * Sits at `z-index: 1`, so it covers the bottom-anchored art while the bubble
+ * column (`z-10`) and the header/footer (`z-20`) stay above it.
+ */
+@utility stage-vignette {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse 58% 72% at 50% 50%,
+      transparent 42%,
+      oklch(0.12 0.022 250 / 0.5) 76%,
+      oklch(0.09 0.018 250 / 0.85) 100%
+    );
+  }
 }
 
 /* ---- White cloud speech bubble ---- */

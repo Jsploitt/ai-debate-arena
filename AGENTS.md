@@ -9,7 +9,7 @@ routes work to the right specialist rather than doing it itself.
 | ----------------- | ------------------------------------------------------------------------------------------------------------ |
 | `hub`             | routing and reconciliation; holds no domain knowledge                                                        |
 | `design-system`   | `src/styles.css` tokens, `@utility` classes, fonts, assets, layout, responsive behaviour, reference fidelity |
-| `debate-engine`   | `src/lib/debate/**` — state machine, streaming transport, judging, simulation, TTS                           |
+| `debate-engine`   | `src/lib/debate/**` plus the shared runtime bridge — state, streaming, judging, simulation, TTS              |
 | `config-surface`  | settings schema, persistence and migration, endpoint tests, the configuration UI                             |
 | `a11y-rtl`        | landmarks, labels, keyboard, focus, contrast, reduced motion, Arabic `dir="rtl"`                             |
 | `backend-runtime` | Docker services and ports, SSR entry, CORS, build output                                                     |
@@ -18,9 +18,9 @@ routes work to the right specialist rather than doing it itself.
 ### Skills (`.claude/skills/`)
 
 `reference-fidelity` (pinned reference SHA + structural checklists) · `design-tokens` (oklch rule,
-token registration, `@utility` catalogue) · `debate-engine-contract` (hook API, SSR boundary) ·
-`arabic-rtl` · `local-llm-fixtures` (deterministic fixtures + a GPU-free mock server) ·
-`verification-protocol` (baseline, smoke matrix, pass criteria)
+token registration, `@utility` catalogue) · `debate-engine-contract` (hook API, shared runtime,
+SSR boundary) · `arabic-rtl` · `local-llm-fixtures` (deterministic fixtures + a GPU-free mock
+server) · `verification-protocol` (baseline, smoke matrix, pass criteria)
 
 ### Commands (`.claude/commands/`)
 
@@ -35,7 +35,7 @@ No default workflow requires one:
 bun .claude/skills/local-llm-fixtures/scripts/mock-ollama.ts
 ```
 
-This binds the same five ports as `docker-compose.yml` (11434, 11435, 11436, 8100, 8101) with
+This binds the same ports as `docker-compose.yml` (11434, 11435, 11436, 8100) with
 permissive CORS, so the app's default settings work untouched. Failure injection via `?fail=`,
 `?judge=` and `?format=` query parameters — see that skill for the full matrix.
 
@@ -44,7 +44,11 @@ permissive CORS, so the app's default settings work untouched. Failure injection
 1. Never rewrite published git history (see the Lovable note above).
 2. The tree must build after every phase.
 3. Never replace real behaviour with mock data or a static control.
-4. One debate state machine — `useDebate` is the only lifecycle owner.
+4. **One live debate runtime.** `useDebate` remains the lifecycle implementation and `useSpeech`
+   remains the playback implementation, but routes must consume them through
+   `DebateRuntimeProvider` / `useDebateRuntime`. The provider owns the live instance for a browser
+   tab and mirrors a single runtime owner to other same-origin tabs/windows. Never instantiate
+   `useDebate` or `useSpeech` directly inside a route.
 5. Removal requires a reference search proving the target is unused. Deployment files, simulation
    scripts and local-model configuration are never "unused" merely because the UI does not render
    them.

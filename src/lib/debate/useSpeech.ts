@@ -50,6 +50,47 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
     });
   }, []);
 
+  /**
+   * The voiceless fallback: pace the reveal at reading speed instead of
+   * revealing the turn instantly.
+   *
+   * This is what keeps simulation mode (and any dead TTS service) looking
+   * like a debate. Every piece of stage choreography — the spotlight, the
+   * speaking mood, the word-by-word reveal, the "thinking" state on the other
+   * side — is derived from this queue whenever voice sync is on. The old
+   * behaviour marked a failed turn revealed immediately, so `speakingId`
+   * lived for milliseconds: nobody ever lit up, whole turns popped in at
+   * once, and the debate read as broken. Now a failed synthesis simply plays
+   * silently at roughly speech pace.
+   */
+  const silentReveal = useCallback((item: QueueItem) => {
+    const words = item.text.trim().split(/\s+/).filter(Boolean).length;
+    // Paced like the streaming client, not like speech: simulateStream emits
+    // a word every ~18-63ms (~40ms average), and the voiceless reveal should
+    // feel like watching that stream, not like waiting out a phantom reading.
+    const durationMs = Math.max(800, words * 42);
+    const started = performance.now();
+    return new Promise<void>((resolve) => {
+      const timer = setInterval(() => {
+        // stop() flips playingRef; a toggle-off clears tts.enabled. Either way
+        // this reveal is over.
+        if (!playingRef.current || !settingsRef.current.tts.enabled) {
+          clearInterval(timer);
+          resolve();
+          return;
+        }
+        const fraction = (performance.now() - started) / durationMs;
+        if (fraction >= 1) {
+          setRevealFraction(1);
+          clearInterval(timer);
+          resolve();
+        } else {
+          setRevealFraction(fraction);
+        }
+      }, 50);
+    });
+  }, []);
+
   const playNext = useCallback(async () => {
     if (!settingsRef.current.tts.enabled) {
       queueRef.current = [];
@@ -69,49 +110,61 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
     setSpeakingId(next.id);
     setRevealFraction(0);
 
+    // True only when real audio actually played to its end; every failure
+    // shape (fetch failed, decode error, autoplay blocked) degrades to the
+    // silent paced reveal instead of skipping the turn.
+    let spoken = false;
     try {
       const s = settingsRef.current;
-      const ar = s.language === "ar";
-      const endpoint = ar ? s.tts.endpointAr : s.tts.endpointEn;
-      const voice = ar ? undefined : s[next.side].voice;
-      const blob = await synthesizeSpeech(next.text, endpoint, voice);
+      // One voice service for both languages, and the speaker's own voice
+      // either way — the Arabic path used to drop the voice entirely, so both
+      // debaters shared one narrator.
+      const blob = await synthesizeSpeech(next.text, s.tts.endpointEn, s[next.side].voice);
       const url = URL.createObjectURL(blob);
       const audio = audioRef.current;
       if (audio) {
-        await new Promise<void>((resolve) => {
+        spoken = await new Promise<boolean>((resolve) => {
           const onTimeUpdate = () => {
             if (audio.duration > 0 && Number.isFinite(audio.duration)) {
               setRevealFraction(Math.min(1, audio.currentTime / audio.duration));
             }
           };
           const cleanup = () => {
-            audio.removeEventListener("ended", onDone);
-            audio.removeEventListener("error", onDone);
+            audio.removeEventListener("ended", onEnded);
+            audio.removeEventListener("error", onError);
             audio.removeEventListener("timeupdate", onTimeUpdate);
             URL.revokeObjectURL(url);
           };
-          const onDone = () => {
+          const onEnded = () => {
             setRevealFraction(1);
             cleanup();
-            resolve();
+            resolve(true);
           };
-          audio.addEventListener("ended", onDone);
-          audio.addEventListener("error", onDone);
+          const onError = () => {
+            cleanup();
+            resolve(false);
+          };
+          audio.addEventListener("ended", onEnded);
+          audio.addEventListener("error", onError);
           audio.addEventListener("timeupdate", onTimeUpdate);
           audio.src = url;
           audio.play().catch(() => {
             cleanup();
-            resolve();
+            resolve(false);
           });
         });
       }
     } catch (err) {
-      console.warn("[useSpeech] TTS request failed, skipping turn:", err);
+      console.warn("[useSpeech] TTS request failed, revealing silently:", err);
+    }
+
+    if (!spoken && playingRef.current && settingsRef.current.tts.enabled) {
+      await silentReveal(next);
     }
 
     markRevealed(next.id);
     void playNext();
-  }, [markRevealed]);
+  }, [markRevealed, silentReveal]);
 
   useEffect(() => {
     // If voice just got turned on, don't retroactively hide turns that were

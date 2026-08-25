@@ -27,7 +27,8 @@ no randomness, no timestamps, no network.
     ├── judge-valid.json          # well-formed scorecard
     ├── judge-fenced.txt          # scorecard wrapped in ```json fences + prose
     ├── judge-partial.txt         # truncated mid-object (tests repair)
-    └── judge-malformed.txt       # trailing commas, single quotes, missing criterion
+    ├── judge-malformed.txt       # trailing commas, single quotes, missing criterion
+    └── brief-valid.json          # well-formed verdict-brief fields (next/reasons/watch/verdict)
 ````
 
 The three broken judge fixtures use `.txt` deliberately: they are not valid JSON, and a `.json`
@@ -121,6 +122,14 @@ judge fixtures cover the failure taxonomy:
 
 A missing criterion must not silently score 0 and hand the debate to the other side. Check what
 `weightedTotal` does with an absent key.
+
+## Verdict brief
+
+The brief hits the winning _debater's_ endpoint with a JSON schema in the request's `format` field
+(Ollama structured outputs). The mock recognises any chat request carrying `format` and answers
+with `brief-valid.json`, so the brief renders with model-written fields end-to-end. `?judge=malformed`
+(or `MOCK_JUDGE=malformed`) makes brief requests fall through to debate prose instead, which
+exercises the brief's retry-then-template-fallback chain.
 
 ## TTS
 

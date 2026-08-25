@@ -29,21 +29,72 @@ export async function listModels(endpoint: string): Promise<string[]> {
   }
 }
 
-export function buildRequestBody(config: DebaterConfig, messages: ChatMessage[]) {
+/**
+ * Per-request overrides for calls that need something other than the slot's
+ * debate configuration — currently only the verdict brief, which constrains
+ * the response to a JSON schema via Ollama structured outputs.
+ */
+export interface RequestOverrides {
+  /**
+   * Ollama's `format` field: `"json"` or a JSON schema object. Constrained
+   * decoding is dramatically more reliable than asking a local model nicely
+   * for JSON. Endpoints that do not know the field ignore it.
+   */
+  format?: unknown;
+  temperature?: number;
+}
+
+/**
+ * Families that must keep Ollama's native `thinking` channel open.
+ *
+ * `think: false` does not stop these models reasoning — it removes the channel
+ * that separates reasoning from the answer, so the scratchpad lands in
+ * `message.content` and goes on stage. Measured on qwen3:30b-a3b: with
+ * `think: false` the visible turn was 229 words of "Okay, the user wants me
+ * to…"; with the flag omitted it was a clean 64-word argument and the
+ * reasoning arrived in `message.thinking`, which `parseLine` re-wraps as
+ * `<think>…</think>` for `splitReasoning` to strip.
+ */
+const NATIVE_THINKING = ["qwen3", "gpt-oss", "deepseek-r1"];
+
+function usesNativeThinking(model: string): boolean {
+  const name = model.toLowerCase();
+  return NATIVE_THINKING.some((family) => name.includes(family));
+}
+
+/**
+ * Context window requested per call.
+ *
+ * Ollama sizes its allocation from the context length times
+ * `OLLAMA_NUM_PARALLEL` (4 on the GB10 box), so leaving this unset made a
+ * 4.9 GB model reserve 74 GB — only one model fit at a time and the three
+ * agents evicted each other between turns, paying a cold load on every
+ * switch. Bounding it keeps all three resident (~44 GB measured). A debate
+ * turn plus history is a couple of thousand tokens, so this is ample.
+ */
+const NUM_CTX = 8192;
+
+export function buildRequestBody(
+  config: DebaterConfig,
+  messages: ChatMessage[],
+  overrides?: RequestOverrides,
+) {
+  const native = usesNativeThinking(config.model);
   return {
     model: config.model,
     messages,
     stream: true,
-    // Some Ollama-served reasoning models (e.g. gemma4) mix native chain-of-
-    // thought into the visible answer instead of cleanly separating it, even
-    // when it's also echoed in `message.thinking`. Disabling native "think"
-    // mode makes all models rely solely on the app's own prompted <think>
-    // tag instruction (see THINKING_INSTRUCTION), which is what the UI
-    // actually parses — deterministic across model families.
-    think: false,
+    // Models that mix chain-of-thought into the visible answer (e.g. gemma4)
+    // are pinned to the app's own prompted <think> tag instead, which is what
+    // the UI parses. Reasoning families are exempt — see NATIVE_THINKING.
+    ...(native ? {} : { think: false }),
+    // Holds the model in memory between turns rather than reloading it.
+    keep_alive: "45m",
+    ...(overrides?.format !== undefined ? { format: overrides.format } : {}),
     options: {
-      temperature: config.temperature,
+      temperature: overrides?.temperature ?? config.temperature,
       top_p: config.topP,
+      num_ctx: NUM_CTX,
     },
   };
 }
@@ -137,11 +188,12 @@ export async function* streamChat(
   config: DebaterConfig,
   messages: ChatMessage[],
   signal?: AbortSignal,
+  overrides?: RequestOverrides,
 ): AsyncGenerator<StreamChunk> {
   const res = await fetch(config.endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(buildRequestBody(config, messages)),
+    body: JSON.stringify(buildRequestBody(config, messages, overrides)),
     signal,
   });
 

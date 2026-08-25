@@ -1,0 +1,26 @@
+# Runs the unit suite on GitHub's own machines, so a broken change is caught
+# before anyone opens the app. Deliberately narrow: these are the pure,
+# DOM-free logic tests. Stage behaviour still needs a real browser.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Not --frozen-lockfile: bun.lock carries pre-existing drift, and a
+      # lockfile complaint is not the failure this workflow exists to report.
+      - run: bun install
+
+      - run: bun run test
+
+      - run: bunx tsc --noEmit
