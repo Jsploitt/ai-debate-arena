@@ -68,7 +68,7 @@ const alpha: DebaterConfig = {
   tonePreset: "Analytical",
   thinkingLevel: 1,
   systemPrompt: TONE_PRESETS.Analytical,
-  voice: "am_michael",
+  voice: "am_adam",
   // No character by default — today's shipped behaviour is preserved and
   // choosing a cast member is opt-in from the Configuration sheet.
   characterId: null,
@@ -86,7 +86,7 @@ const beta: DebaterConfig = {
   tonePreset: "Aggressive",
   thinkingLevel: 1,
   systemPrompt: TONE_PRESETS.Aggressive,
-  voice: "af_heart",
+  voice: "af_kore",
   characterId: null,
 };
 

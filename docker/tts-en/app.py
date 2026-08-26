@@ -24,7 +24,7 @@ SAMPLE_RATE = 24000
 
 class SynthesizeRequest(BaseModel):
     text: str
-    voice: str = "af_heart"
+    voice: str = "af_kore"
 
 
 def clean_text(text: str) -> str:
