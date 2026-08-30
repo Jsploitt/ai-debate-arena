@@ -45,15 +45,18 @@ export interface RequestOverrides {
 }
 
 /**
- * Families that must keep Ollama's native `thinking` channel open.
+ * Families whose reasoning escapes into the answer when `think: false` is set.
  *
- * `think: false` does not stop these models reasoning — it removes the channel
+ * For these, the flag does not suppress reasoning — it removes the channel
  * that separates reasoning from the answer, so the scratchpad lands in
- * `message.content` and goes on stage. Measured on qwen3:30b-a3b: with
- * `think: false` the visible turn was 229 words of "Okay, the user wants me
- * to…"; with the flag omitted it was a clean 64-word argument and the
- * reasoning arrived in `message.thinking`, which `parseLine` re-wraps as
- * `<think>…</think>` for `splitReasoning` to strip.
+ * `message.content`. Measured on qwen3:30b-a3b: 229 words of "Okay, the user
+ * wants me to…" with the flag, a clean 64-word argument without it.
+ *
+ * The exemption only applies when the response is NOT schema-constrained.
+ * Under a schema the grammar itself forbids anything outside the answer
+ * string, so the channel is not needed — and keeping it open is expensive:
+ * a constrained qwen3 turn took 12.2s with native thinking against 1.8s
+ * without, with zero leaks either way. Speed wins once leaking is impossible.
  */
 const NATIVE_THINKING = ["qwen3", "gpt-oss", "deepseek-r1"];
 
@@ -79,15 +82,18 @@ export function buildRequestBody(
   messages: ChatMessage[],
   overrides?: RequestOverrides,
 ) {
-  const native = usesNativeThinking(config.model);
+  // A schema makes leaking structurally impossible, so the exemption is only
+  // needed for unconstrained calls.
+  const constrained = overrides?.format !== undefined;
+  const keepNativeThinking = !constrained && usesNativeThinking(config.model);
   return {
     model: config.model,
     messages,
     stream: true,
     // Models that mix chain-of-thought into the visible answer (e.g. gemma4)
     // are pinned to the app's own prompted <think> tag instead, which is what
-    // the UI parses. Reasoning families are exempt — see NATIVE_THINKING.
-    ...(native ? {} : { think: false }),
+    // the UI parses. See NATIVE_THINKING for the exemption.
+    ...(keepNativeThinking ? {} : { think: false }),
     // Holds the model in memory between turns rather than reloading it.
     keep_alive: "45m",
     ...(overrides?.format !== undefined ? { format: overrides.format } : {}),

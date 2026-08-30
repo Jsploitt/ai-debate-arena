@@ -57,6 +57,29 @@ describe("stripMeta", () => {
       "Free tiers build trust.",
     );
   });
+
+  it("removes a bare unbracketed count sign-off (the qwen3 shape)", () => {
+    expect(stripMeta("Paper wins. 46 words, within limit")).toBe("Paper wins.");
+    expect(stripMeta("Paper wins. 46 words, within limit.")).toBe("Paper wins.");
+    expect(stripMeta("Paper wins.\n46 words")).toBe("Paper wins.");
+    expect(stripMeta("Paper wins. Exactly 50 words — under the cap.")).toBe("Paper wins.");
+    expect(stripMeta("Paper wins. Word count: 46")).toBe("Paper wins.");
+    expect(stripMeta("Paper wins. Within the 50-word limit.")).toBe("Paper wins.");
+    expect(stripMeta("Paper wins. That's 49 words.")).toBe("Paper wins.");
+  });
+
+  it("removes stacked meta sign-offs in one pass", () => {
+    expect(stripMeta("Paper wins. (46 words)\nWithin the limit.")).toBe("Paper wins.");
+  });
+
+  it("keeps a real final sentence that mentions words or limits", () => {
+    const words = "Cut a thousand words from every report and people read them.";
+    expect(stripMeta(words)).toBe(words);
+    const limit = "Speed without accuracy is a limit, not a feature.";
+    expect(stripMeta(limit)).toBe(limit);
+    const midCount = "A 50 words summary beats a memo."; // count leads the sentence but carries meaning
+    expect(stripMeta("Paper wins. " + midCount)).toBe("Paper wins. " + midCount);
+  });
 });
 
 describe("spokenText", () => {

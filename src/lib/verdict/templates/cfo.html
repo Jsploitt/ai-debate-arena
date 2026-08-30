@@ -41,7 +41,6 @@
     color:var(--dim); font-size:clamp(13px,2vh,18px); padding-left:12px;
     border-left:2px solid var(--accent); flex:0 0 auto;
     animation:fadeUp .4s ease .04s both;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .winner{
     display:flex; justify-content:space-between; align-items:center;
@@ -98,7 +97,7 @@
     .wrap{padding:2vh 4vw; gap:1.1vh}
     .grid{grid-template-columns:1fr; grid-template-rows:repeat(4,1fr); gap:1vh}
     .context{white-space:normal}
-    li{-webkit-line-clamp:1; font-size:clamp(11px,2.4vh,14px)}
+    li{-webkit-line-clamp:2; font-size:clamp(11px,2.4vh,14px)}
     .reason .txt{font-size:clamp(16px,2.4vh,22px)}
   }
 </style>
@@ -121,16 +120,6 @@
 
   <div class="grid">
     <div class="panel">
-      <h2>What To Do Next</h2>
-      <ul>
-        <li>{{next1}}</li>
-      <li>{{next2}}</li>
-      <li>{{next3}}</li>
-      <li>{{next4}}</li>
-      </ul>
-    </div>
-
-    <div class="panel">
       <h2>Why This Argument Wins</h2>
       <div class="reasons">
         <div class="reason">
@@ -152,19 +141,29 @@
       </div>
     </div>
 
+    <div class="panel verdict-panel">
+      <h2>Final Verdict</h2>
+      <p class="verdict fill">"{{verdict}}"</p>
+    </div>
+
     <div class="panel">
-      <h2>Points to Watch</h2>
+      <h2>Action Plan</h2>
+      <ul>
+        <li>{{next1}}</li>
+      <li>{{next2}}</li>
+      <li>{{next3}}</li>
+      <li>{{next4}}</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>Challenges</h2>
       <ul>
         <li>{{watch1}}</li>
       <li>{{watch2}}</li>
       <li>{{watch3}}</li>
       <li>{{watch4}}</li>
       </ul>
-    </div>
-
-    <div class="panel verdict-panel">
-      <h2>Final Verdict</h2>
-      <p class="verdict fill">"{{verdict}}"</p>
     </div>
   </div>
 </div>

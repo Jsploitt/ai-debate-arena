@@ -133,18 +133,31 @@ export const LANGUAGE_LABEL: Record<DebateLanguage, string> = {
   ar: "العربية",
 };
 
-export const SAMPLE_TOPICS_AR = [
-  "هل الحوسبة الطرفية أفضل من السحابة المركزية لإنترنت الأشياء؟",
-  "أخلاقيات الذكاء الاصطناعي: هل يجب أن تكون النماذج المتقدمة مفتوحة الأوزان؟",
-  "الحوسبة الكمية ستجعل الحوسبة الفائقة التقليدية بلا جدوى",
-  "المدن الذكية السعودية تحتاج بنية ذكاء اصطناعي محلية داخل الموقع",
-];
-
-export const SAMPLE_TOPICS = [
-  "Is edge computing superior to centralized cloud for IoT?",
-  "AI Ethics: should frontier models be open-weight?",
-  "Quantum computing will make classical supercomputing obsolete",
-  "Saudi smart cities (THE LINE) need on-premise AI infrastructure",
+/**
+ * The full debate catalogue, one flat phrasing per motion: the exact chip text
+ * shown to visitors is also the resolution the models receive. The stage
+ * ticker and the Control Arena picker both read from this list.
+ */
+export const ALL_TOPICS = [
+  "AI creates more jobs than it kills",
+  "AI speed beats accuracy",
+  "Put AI in every classroom",
+  "AI will replace search engines",
+  "Ban AI from final hiring calls",
+  "Remote work beats the office",
+  "Four-day work week",
+  "Employees before customers",
+  "Grow leaders, don't hire them",
+  "Hire for adaptability, not experience",
+  "Marketing beats a prime location",
+  "Open a restaurant, not a café",
+  "Start with a co-founder, not alone",
+  "Privacy over convenience",
+  "Smartphones ruined conversation",
+  "Ship self-driving cars now",
+  "Online shopping beats the mall",
+  "Paper books beat e-books",
+  "Public transport over owning a car",
 ];
 
 const STORAGE_KEY = "debate-arena-settings-v1";

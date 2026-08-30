@@ -6,7 +6,7 @@
 <title>Brand & Growth Verdict</title>
 <style>
   :root{
-    --bg:#1A0F0C; --panel:#241512; --accent:#E85D3D; --ink:#F3E8E2; --dim:#A8897E; --line:#3A2620;
+    --bg:#140F1E; --panel:#1D1430; --accent:#D8B4FE; --ink:#EEE8F6; --dim:#9C8AB8; --line:#332347;
   }
   *{box-sizing:border-box}
   @keyframes fadeUp{
@@ -41,13 +41,12 @@
     color:var(--dim); font-size:clamp(13px,2vh,18px); padding-left:12px;
     border-left:2px solid var(--accent); flex:0 0 auto;
     animation:fadeUp .4s ease .04s both;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .winner{
     display:flex; justify-content:space-between; align-items:center;
     border:1px solid var(--accent); border-radius:8px;
     padding:1.2vh 16px;
-    background:linear-gradient(90deg, #241512 0%, #1A0F0C 100%);
+    background:linear-gradient(90deg, #1D1430 0%, #140F1E 100%);
     animation:fadeUp .4s ease .06s both; flex:0 0 auto;
   }
   .winner .name{font-size:clamp(18px,3vh,26px); font-weight:700}
@@ -98,7 +97,7 @@
     .wrap{padding:2vh 4vw; gap:1.1vh}
     .grid{grid-template-columns:1fr; grid-template-rows:repeat(4,1fr); gap:1vh}
     .context{white-space:normal}
-    li{-webkit-line-clamp:1; font-size:clamp(11px,2.4vh,14px)}
+    li{-webkit-line-clamp:2; font-size:clamp(11px,2.4vh,14px)}
     .reason .txt{font-size:clamp(16px,2.4vh,22px)}
   }
 </style>
@@ -121,16 +120,6 @@
 
   <div class="grid">
     <div class="panel">
-      <h2>What To Do Next</h2>
-      <ul>
-        <li>{{next1}}</li>
-      <li>{{next2}}</li>
-      <li>{{next3}}</li>
-      <li>{{next4}}</li>
-      </ul>
-    </div>
-
-    <div class="panel">
       <h2>Why This Argument Wins</h2>
       <div class="reasons">
         <div class="reason">
@@ -152,19 +141,29 @@
       </div>
     </div>
 
+    <div class="panel verdict-panel">
+      <h2>Final Verdict</h2>
+      <p class="verdict fill">"{{verdict}}"</p>
+    </div>
+
     <div class="panel">
-      <h2>Points to Watch</h2>
+      <h2>Action Plan</h2>
+      <ul>
+        <li>{{next1}}</li>
+      <li>{{next2}}</li>
+      <li>{{next3}}</li>
+      <li>{{next4}}</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>Challenges</h2>
       <ul>
         <li>{{watch1}}</li>
       <li>{{watch2}}</li>
       <li>{{watch3}}</li>
       <li>{{watch4}}</li>
       </ul>
-    </div>
-
-    <div class="panel verdict-panel">
-      <h2>Final Verdict</h2>
-      <p class="verdict fill">"{{verdict}}"</p>
     </div>
   </div>
 </div>

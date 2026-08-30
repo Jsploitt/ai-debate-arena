@@ -37,6 +37,7 @@ import {
   type PersonaId,
 } from "@/lib/personas";
 import { downloadVerdictPdf, verdictDocFromScorecard } from "@/lib/pdf";
+import { ALL_TOPICS } from "@/lib/debate/presets";
 
 const TITLE = "AI Debate Arena — Two Local LLMs, One Executive Judge";
 const DESCRIPTION =
@@ -56,49 +57,10 @@ export const Route = createFileRoute("/")({
   component: ArenaHome,
 });
 
-const TOPICS_ROW_1 = [
-  "Replace sales with AI agents",
-  "Go fully remote, close offices",
-  "Open-source the core product",
-  "Ban meetings over 15 minutes",
-  "Leave the public cloud",
-  "Four-day work week",
-  "Kill the free tier",
-  "Acquire our competitor",
-  "Freeze hiring, automate",
-  "Rebrand for a new market",
-];
-
-const TOPICS_ROW_2 = [
-  "Pay everyone the same salary",
-  "Halve marketing, fund R&D",
-  "Launch in three countries",
-  "Make all documents public",
-  "Scrap annual reviews",
-  "Build our own AI models",
-  "Sunset the oldest product",
-  "Usage-based pricing",
-  "Outsource all support",
-  "Go public in 18 months",
-];
-
-const TOPICS_ROW_1_AR = [
-  "استبدال فريق المبيعات بوكلاء ذكاء اصطناعي",
-  "العمل عن بعد بالكامل وإغلاق المكاتب",
-  "فتح المصدر للمنتج الأساسي",
-  "منع الاجتماعات التي تتجاوز ربع ساعة",
-  "مغادرة السحابة العامة",
-  "أسبوع عمل من أربعة أيام",
-];
-
-const TOPICS_ROW_2_AR = [
-  "توحيد الرواتب بين جميع الموظفين",
-  "تقليص التسويق لتمويل البحث والتطوير",
-  "إتاحة جميع المستندات للجميع",
-  "إلغاء التقييمات السنوية",
-  "بناء نماذج ذكاء اصطناعي خاصة بنا",
-  "التسعير حسب الاستخدام",
-];
+// Both ticker rows draw from the same catalogue the Control Arena picker
+// shows, so the two surfaces always offer identical motions.
+const TOPICS_ROW_1 = ALL_TOPICS.slice(0, Math.ceil(ALL_TOPICS.length / 2));
+const TOPICS_ROW_2 = ALL_TOPICS.slice(Math.ceil(ALL_TOPICS.length / 2));
 
 function ArenaHome() {
   const { settings, updateSettings } = useSettings();
@@ -172,7 +134,21 @@ function ArenaHome() {
     for (const count of scoreQueueRef.current.keys()) {
       if (count <= delivered && count > bestCount) bestCount = count;
     }
-    if (bestCount >= 0) setScorecard(scoreQueueRef.current.get(bestCount)!);
+    if (bestCount >= 0) {
+      setScorecard(scoreQueueRef.current.get(bestCount)!);
+      return;
+    }
+    // No candidate is fully delivered. Mid-debate that means "hold the last
+    // shown card" — but after a route round-trip this component remounts with
+    // an empty queue and no last card, and holding meant showing 0.0 until
+    // the voice caught up with the newest judgement. Fall back to the least-
+    // ahead candidate available rather than a scoreboard reset.
+    setScorecard((prev) => {
+      if (prev) return prev;
+      let oldest = Infinity;
+      for (const count of scoreQueueRef.current.keys()) oldest = Math.min(oldest, count);
+      return Number.isFinite(oldest) ? (scoreQueueRef.current.get(oldest) ?? null) : null;
+    });
   }, [debate.scorecard, debate.messages, speech_]);
 
   // A side with no delivered turn has no score yet, which the board must not
@@ -230,12 +206,23 @@ function ArenaHome() {
     deliveredTurnCount(debate.messages, speech_) >= debate.messages.length &&
     speech_.speakingId === null;
   const hasFinalVerdict = finished && !!scorecard && !scorecard.interim && allDelivered;
-  const briefReady = hasFinalVerdict;
 
-  const rails = useMemo(
-    () => (isArabic ? [TOPICS_ROW_1_AR, TOPICS_ROW_2_AR] : [TOPICS_ROW_1, TOPICS_ROW_2]),
-    [isArabic],
-  );
+  // Hold the closing tableau for a beat before the verdict takes over the
+  // stage — cutting to the result the instant the last word lands leaves the
+  // audience no time to register who won or the final score.
+  const [verdictRevealed, setVerdictRevealed] = useState(false);
+  useEffect(() => {
+    if (!hasFinalVerdict) {
+      setVerdictRevealed(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setVerdictRevealed(true), 3000);
+    return () => window.clearTimeout(timer);
+  }, [hasFinalVerdict]);
+
+  const briefReady = hasFinalVerdict && verdictRevealed;
+
+  const rails = [TOPICS_ROW_1, TOPICS_ROW_2];
 
   const pickPersona = useCallback(
     (id: PersonaId) => {
@@ -436,7 +423,7 @@ function ArenaHome() {
             <TopicRail topics={rails[0]} onPick={setTopic} />
             <TopicRail topics={rails[1]} onPick={setTopic} reverse />
           </div>
-        ) : hasFinalVerdict ? (
+        ) : hasFinalVerdict && verdictRevealed ? (
           <div className="arena-panel mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-xl px-5 py-3">
             <div>
               <div className="font-display text-base tracking-[0.25em] text-primary uppercase">

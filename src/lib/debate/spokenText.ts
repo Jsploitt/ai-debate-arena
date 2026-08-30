@@ -83,16 +83,47 @@ export function readArgument(raw: string): string {
 /**
  * Strip meta the model wrote *inside* its own argument.
  *
- * Constrained decoding cannot stop this — `"(47 words)"` is a perfectly legal
- * string. Kept deliberately narrow: only trailing self-annotation, so an
- * ordinary parenthetical mid-sentence survives untouched.
+ * Constrained decoding cannot stop this — `"(47 words)"` or a bare
+ * "46 words, within limit" sign-off is a perfectly legal string. Instead of
+ * chasing each new phrasing, this works structurally: it looks at the turn's
+ * final segment (whatever follows the last sentence boundary or newline) and
+ * drops it if it is word-count bookkeeping rather than argument. Repeats in
+ * case the model stacked more than one note. An ordinary mid-sentence
+ * parenthetical, or a real argument that happens to mention words, survives:
+ * only a *trailing* segment that leads with a count (or limit talk) is cut.
  */
+const META_SEGMENT = [
+  // "46 words", "(46 words, within limit)", "Exactly 50 words — under the cap."
+  /^[([]?\s*(?:approx\.?|exactly|about|that(?:'s| is))?\s*\d+\s*words?\b[^.!?]{0,60}[.!?)\]]*$/i,
+  // "Word count: 46", "[word count ok]"
+  /^[([]?\s*word count\b.*$/i,
+  // "Within the 50-word limit.", "Under the limit."
+  /^[([]?\s*(?:well\s+)?(?:within|under)\s+(?:the\s+)?(?:\d+[- ]?word\s+)?limit\b[^.!?]{0,30}[.!?)\]]*$/i,
+  // "[thinking: …]", "[note …]" sign-offs
+  /^\[(?:thinking|reasoning|note)[^\]]*\]$/i,
+] as const;
+
 export function stripMeta(text: string): string {
-  return text
-    .replace(/\s*[([]\s*(?:approx\.?\s*)?\d+\s*words?\s*[)\]]\s*$/i, "")
-    .replace(/\s*[([]\s*word count[^)\]]*[)\]]\s*$/i, "")
-    .replace(/\s*\[(?:thinking|reasoning|note)[^\]]*\]\s*$/i, "")
-    .trimEnd();
+  let out = text.trimEnd();
+  for (let pass = 0; pass < 3; pass++) {
+    // The final segment: everything after the last newline or the last
+    // sentence terminator that has text following it.
+    let boundary = out.lastIndexOf("\n") + 1;
+    const re = /[.!?…]["'”)\]]?\s+/g;
+    for (let m = re.exec(out); m; m = re.exec(out)) {
+      boundary = Math.max(boundary, m.index + m[0].length);
+    }
+    if (boundary <= 0) break;
+    const tail = out.slice(boundary).trim();
+    if (!tail || !META_SEGMENT.some((r) => r.test(tail))) break;
+    out = out
+      .slice(0, boundary)
+      // A meta note split by its own punctuation ("(approx. 47 words)") can
+      // leave its opener behind — drop the orphan.
+      .replace(/\s*[([]\s*(?:approx\.?|exactly|about)?\s*$/i, "")
+      .trimEnd();
+  }
+  return out;
 }
 
 /** Everything the stage, the voice queue and the judge should ever see. */

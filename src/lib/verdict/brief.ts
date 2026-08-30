@@ -77,82 +77,82 @@ export type BriefFields = z.infer<typeof briefFieldsSchema>;
 const HINTS: Record<PersonaId, { next: string[]; reasons: string[]; watch: string[] }> = {
   ceo: {
     next: [
-      "the first step to greenlight and kick off execution",
-      "the kind of team or function that should own delivery",
-      "the milestone that marks real progress (a checkpoint, never a date)",
-      "the signal that would trigger a strategy review",
+      "the first concrete step to act on this motion (name its actual subject)",
+      "who should own making this specific change happen",
+      "the visible sign this decision is working (a checkpoint, never a date)",
+      "the warning sign that would make you rethink this decision",
     ],
     reasons: [
-      "the long-term strategic upside of this proposal",
-      "how it strengthens the competitive position",
-      "the nature of the risk taken, and why it is justified",
-      "its effect on the organisation's execution capacity",
+      "the strongest point you actually made, restated simply",
+      "the risk your opponent raised, and how you answered it",
+      "why your case beat your opponent's best argument",
+      "what makes this decision realistic for the company to carry out",
     ],
     watch: [
-      "the impact on board and shareholder decisions",
-      "whether company-wide priorities need reshuffling",
-      "how long strategic results realistically take to appear",
-      "the alignment needed across department heads before rollout",
+      "who has to agree before this specific change goes ahead",
+      "what this change pushes aside or competes with",
+      "how long this particular change takes to show results",
+      "the part of the company this change hits hardest",
     ],
   },
   cfo: {
     next: [
-      "the budget approval or funding step required first",
-      "the financial milestone to hit before scaling further",
-      "the metric to track spend against, and how often",
-      "the point at which the plan gets re-evaluated",
+      "the first spend or approval this specific decision needs",
+      "the small version of this change to fund before going further",
+      "what to measure to know this change is paying off",
+      "the moment to look at this decision again",
     ],
     reasons: [
-      "the strongest financial case and expected return",
-      "how financial risk was addressed",
-      "why it beats the alternative on return and cost",
-      "its effect on near-term cash flow",
+      "your strongest money argument from the debate, restated simply",
+      "the cost concern your opponent raised, and how you answered it",
+      "why this beats keeping things as they are",
+      "what this change means for money coming in and out soon",
     ],
     watch: [
-      "whether additional funding or budget reallocation is needed",
-      "the financial assumptions that should be verified before approval",
-      "the best timing for execution given liquidity",
-      "any tax or reporting implications to flag early",
+      "where the money for this specific change comes from",
+      "the money assumption from the debate that should be checked first",
+      "the best moment to make this change, money-wise",
+      "any paperwork or reporting this change drags in",
     ],
   },
   cmo: {
     next: [
-      "the first campaign or content piece to launch",
-      "the channel and audience to test with first",
-      "the trigger for the first public touchpoint (a readiness condition, never a date)",
-      "the signal that means it is time to scale up",
+      "the first public move to make on this specific change",
+      "who to tell first about this change, and where",
+      "what must be ready before going public (a condition, never a date)",
+      "the audience reaction that means it is time to go bigger",
     ],
     reasons: [
-      "why it lands directly with the target audience",
-      "the expected benefit to the brand's story",
-      "the growth and reach opportunity it unlocks",
-      "how it stands out from what competitors offer",
+      "your strongest audience argument from the debate, restated simply",
+      "how this change makes the company's story better",
+      "the doubt your opponent raised, and how you answered it",
+      "why this stands out from what everyone else is doing",
     ],
     watch: [
-      "the best channels for launch and the priority audience",
-      "the metrics that will measure campaign success",
-      "any brand perception risk that should be monitored",
-      "timing relative to competitor campaigns or events",
+      "who this change might upset, and how they hear about it first",
+      "what tells you people actually like this change",
+      "how this change could be misread from the outside",
+      "the moment competitors are likely to respond",
     ],
   },
   cto: {
     next: [
-      "the first build or setup task to start with",
-      "the kind of team or engineer that should own implementation",
-      "what a first working version has to demonstrate (a condition, never a date)",
-      "the check needed before wider rollout",
+      "the first thing to build or set up for this specific change",
+      "who should build this, and what they need",
+      "what a first working version must prove (a condition, never a date)",
+      "the check to pass before rolling this out to everyone",
     ],
     reasons: [
-      "the soundness of the technical approach and architecture",
-      "how scalability and reliability concerns were handled",
-      "why it is the lowest-risk, most maintainable path",
-      "how well it fits the current systems and stack",
+      "your strongest practical argument from the debate, restated simply",
+      "the breaking-point worry your opponent raised, and how you answered it",
+      "why this is the safer path of the two argued",
+      "how this fits what the company already runs",
     ],
     watch: [
-      "the engineering effort realistically required to implement",
-      "any dependency on external tools or vendors",
-      "the testing and monitoring plan after launch",
-      "the rollback plan if issues surface post-launch",
+      "the hidden work this specific change probably involves",
+      "what outside tools or people this change depends on",
+      "how to catch problems with this change early",
+      "the way back if this change goes wrong",
     ],
   },
 };
@@ -280,7 +280,9 @@ export function buildBriefMessages({
         "",
         "Rules — every one of these is load-bearing:",
         BAN,
-        "Each field is one short sentence of at most 12 words — they are rendered on a slide and a longer line is cut off. No bullet markers, no headings, no quotation marks.",
+        "Write in plain everyday English: short sentences, common words, no business or technical jargon. The room hears each line once.",
+        "Every line must be visibly about THIS debate. Name the motion's actual subject in plain words and echo arguments that were really made. If a line could be pasted into a brief for a different debate unchanged, it is wrong — rewrite it until it could only belong to this one.",
+        "Each field is one short sentence of at most 10 words — they are rendered on a slide and a longer line is cut off. Keep every word that carries meaning; cut filler, not context. No bullet markers, no headings, no quotation marks.",
         "Respond with a single JSON object and nothing else.",
         languageNote,
       ]
@@ -632,7 +634,17 @@ function tidy(value: string, fallback: string): string {
     .replace(/\s+/g, " ")
     .trim();
   if (!clean || hasFabricatedNumber(clean)) return fallback;
-  return clean;
+  // Slide panels clamp overflow with an ellipsis, and a mid-thought "…" on
+  // screen is worse than a shorter line. Capping at a word boundary here
+  // keeps every rendered line whole, so the clamp never actually fires.
+  const words = clean.split(" ");
+  if (words.length <= 14) return clean;
+  return (
+    words
+      .slice(0, 14)
+      .join(" ")
+      .replace(/[,;:]$/, "") + "."
+  );
 }
 
 export type BriefFacts = {

@@ -21,44 +21,42 @@ export interface SpeechView {
 }
 
 /**
- * Reveal whole words only, never cutting mid-word, up to `fraction`.
+ * How far the on-screen text runs ahead of the voice.
  *
- * Uses Intl.Segmenter for grapheme-correct behaviour where available: Arabic
+ * At 1 the words appeared exactly as they were spoken — which, with update
+ * granularity on top, read as the text chasing the audio and felt clunky. The
+ * lead makes the turn type itself out ahead of the voice instead: it still
+ * starts with the audio and stays monotonic, but finishes writing well before
+ * the voice does and then holds on screen until the turn ends.
+ */
+export const REVEAL_LEAD = 1.75;
+
+/**
+ * Reveal character by character — a typewriter, not a word counter — up to
+ * `fraction` of the way through the voice, scaled by `REVEAL_LEAD` so the
+ * text writes ahead of the audio rather than trailing it.
+ *
+ * Slices on grapheme boundaries via Intl.Segmenter where available: Arabic
  * combining marks must not be split off from their base character, which a
- * naive index slice will happily do. Falls back to whitespace tokens, which is
- * already safe for the languages this app debates in.
+ * naive index slice will happily do. Falls back to a code-point slice, which
+ * keeps surrogate pairs intact.
  */
 export function revealedText(text: string, fraction: number, locale = "en"): string {
+  fraction = fraction > 0 ? Math.min(1, fraction * REVEAL_LEAD) : fraction;
   if (fraction >= 1) return text;
   if (fraction <= 0) return "";
 
-  const tokens = text.split(/(\s+)/);
-  const wordCount = tokens.filter((t) => t.trim()).length;
-  if (wordCount === 0) return "";
-
-  const targetWords = Math.floor(wordCount * fraction);
-  let seen = 0;
-  let out = "";
-  for (const token of tokens) {
-    if (token.trim()) {
-      if (seen >= targetWords) break;
-      seen++;
-    }
-    out += token;
-  }
-
-  // Guard against a partial trailing grapheme if the caller passed a text that
-  // was already sliced upstream.
-  if (typeof Intl !== "undefined" && "Segmenter" in Intl && out.length > 0) {
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
     const segmenter = new Intl.Segmenter(locale, { granularity: "grapheme" });
-    const graphemes = [...segmenter.segment(out)];
-    const last = graphemes[graphemes.length - 1];
-    if (last && last.segment.length > 1 && !text.startsWith(out)) {
-      out = out.slice(0, last.index);
-    }
+    const graphemes = [...segmenter.segment(text)];
+    const target = Math.floor(graphemes.length * fraction);
+    if (target <= 0) return "";
+    const last = graphemes[target - 1];
+    return text.slice(0, last.index + last.segment.length);
   }
 
-  return out;
+  const points = [...text];
+  return points.slice(0, Math.floor(points.length * fraction)).join("");
 }
 
 /**

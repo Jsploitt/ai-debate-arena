@@ -45,7 +45,7 @@ import {
   runtimeState,
   speakingSide,
 } from "@/lib/debate/presentation";
-import { SAMPLE_TOPICS, SAMPLE_TOPICS_AR } from "@/lib/debate/presets";
+import { ALL_TOPICS } from "@/lib/debate/presets";
 import { DEFAULT_PERSONA_ID, PERSONAS, personaForWeights } from "@/lib/personas";
 import { buildTranscriptMarkdown, downloadMarkdown } from "@/lib/transcript";
 
@@ -80,7 +80,7 @@ function ControlArena() {
   const betaArt = slotArt(settings.beta, "beta");
 
   const isArabic = settings.language === "ar";
-  const samples = isArabic ? SAMPLE_TOPICS_AR : SAMPLE_TOPICS;
+  const [topicsOpen, setTopicsOpen] = useState(false);
 
   const persona = PERSONAS[personaForWeights(settings.judge.weights) ?? DEFAULT_PERSONA_ID];
   const speaking = speakingSide(debate.status, debate.messages, speech);
@@ -297,22 +297,31 @@ function ControlArena() {
             Voice {settings.tts.enabled ? "on" : "off"}
           </Button>
 
-          {!started && samples.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Kicker>Samples</Kicker>
-              {samples.slice(0, 3).map((sample) => (
-                <button
-                  key={sample}
-                  type="button"
-                  onClick={() => setInput(sample)}
-                  dir={isArabic ? "rtl" : "ltr"}
-                  className="rounded-md border border-border bg-background/60 px-2.5 py-1 text-[11px] text-foreground/80 transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  {sample}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="w-full">
+            <button
+              type="button"
+              onClick={() => setTopicsOpen((open) => !open)}
+              aria-expanded={topicsOpen}
+              className="flex items-center gap-1.5 rounded-md border border-border bg-background/60 px-2.5 py-1 text-[11px] text-foreground/80 transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              <Kicker>Topics</Kicker>
+              {topicsOpen ? "Hide" : "Browse all"}
+            </button>
+            {topicsOpen && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {ALL_TOPICS.map((sample) => (
+                  <button
+                    key={sample}
+                    type="button"
+                    onClick={() => setInput(sample)}
+                    className="rounded-md border border-border bg-background/60 px-2.5 py-1 text-[11px] text-foreground/80 transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    {sample}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </section>
 

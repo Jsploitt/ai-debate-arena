@@ -55,10 +55,25 @@ describe("revealedText", () => {
     expect(revealedText("one two three", -1)).toBe("");
   });
 
-  it("never cuts a word in half", () => {
-    const out = revealedText("alpha beta gamma delta", 0.5);
-    for (const word of out.trim().split(/\s+/)) {
-      expect(["alpha", "beta", "gamma", "delta"]).toContain(word);
+  it("types character by character — partial words are the point", () => {
+    const text = "alpha beta gamma delta";
+    // Some fraction lands mid-word: the reveal is a typewriter, not a word
+    // counter, so a partially typed word must be able to appear.
+    const partials = Array.from({ length: 20 }, (_, i) => revealedText(text, (i + 1) / 40));
+    expect(
+      partials.some((p) => p.length > 0 && !text.startsWith(p + " ") && !p.endsWith(" ")),
+    ).toBe(true);
+    // ...and every prefix is literally the start of the full text.
+    for (const p of partials) expect(text.startsWith(p)).toBe(true);
+  });
+
+  it("never splits a grapheme (Arabic combining marks stay attached)", () => {
+    const text = "e\u0301e\u0301e\u0301e\u0301"; // e + combining acute, four times
+    for (let f = 0.05; f < 0.6; f += 0.05) {
+      const out = revealedText(text, f);
+      // A revealed slice may never end on a bare base letter whose combining
+      // mark was cut off.
+      expect(out.endsWith("e")).toBe(false);
     }
   });
 
@@ -71,6 +86,17 @@ describe("revealedText", () => {
 
   it("returns empty string for an empty input", () => {
     expect(revealedText("", 0.5)).toBe("");
+  });
+
+  it("writes ahead of the voice and completes before the audio does", () => {
+    const text = "one two three four five six seven eight";
+    // At 60% of the audio the lead has already finished the whole turn…
+    expect(revealedText(text, 0.6)).toBe(text);
+    // …but the reveal still starts with the audio, not before it.
+    expect(revealedText(text, 0)).toBe("");
+    const early = revealedText(text, 0.2).trim().split(/\s+/).filter(Boolean).length;
+    expect(early).toBeGreaterThan(0);
+    expect(early).toBeLessThan(8);
   });
 });
 

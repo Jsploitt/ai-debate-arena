@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { withLeadingSilence } from "./audioPad";
 import { synthesizeSpeech } from "./tts";
 import type { ArenaSettings, DebateMessage, Side } from "./types";
 
@@ -29,6 +30,10 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const queueRef = useRef<QueueItem[]>([]);
   const playingRef = useRef(false);
+  // Bumped by stop(). A playNext that awaited across a stop()/restart must
+  // not play its stale clip over the new session or resurrect its message id
+  // into the just-cleared revealedIds.
+  const sessionRef = useRef(0);
   const spokenIdsRef = useRef(new Set<string>());
   const wasEnabledRef = useRef(settings.tts.enabled);
 
@@ -107,6 +112,7 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
       return;
     }
     playingRef.current = true;
+    const session = sessionRef.current;
     setSpeakingId(next.id);
     setRevealFraction(0);
 
@@ -119,20 +125,33 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
       // One voice service for both languages, and the speaker's own voice
       // either way — the Arabic path used to drop the voice entirely, so both
       // debaters shared one narrator.
-      const blob = await synthesizeSpeech(next.text, s.tts.endpointEn, s[next.side].voice);
+      const raw = await synthesizeSpeech(next.text, s.tts.endpointEn, s[next.side].voice);
+      // An idle audio sink swallows the first few hundred milliseconds of
+      // playback while it wakes up — the debate's opening word was inaudible.
+      // The pre-roll absorbs the wake-up; padSeconds keeps the reveal synced
+      // to the speech rather than to the silence.
+      const { blob, padSeconds } = await withLeadingSilence(raw);
+      if (session !== sessionRef.current) return;
       const url = URL.createObjectURL(blob);
       const audio = audioRef.current;
       if (audio) {
         spoken = await new Promise<boolean>((resolve) => {
-          const onTimeUpdate = () => {
-            if (audio.duration > 0 && Number.isFinite(audio.duration)) {
-              setRevealFraction(Math.min(1, audio.currentTime / audio.duration));
+          // Polls the audio clock instead of listening to `timeupdate`: the
+          // event only fires a few times a second, which made the typewriter
+          // reveal advance in visible lurches. 50ms matches silentReveal.
+          const tick = () => {
+            const speechDuration = audio.duration - padSeconds;
+            if (speechDuration > 0 && Number.isFinite(audio.duration)) {
+              setRevealFraction(
+                Math.min(1, Math.max(0, (audio.currentTime - padSeconds) / speechDuration)),
+              );
             }
           };
+          const timer = setInterval(tick, 50);
           const cleanup = () => {
+            clearInterval(timer);
             audio.removeEventListener("ended", onEnded);
             audio.removeEventListener("error", onError);
-            audio.removeEventListener("timeupdate", onTimeUpdate);
             URL.revokeObjectURL(url);
           };
           const onEnded = () => {
@@ -146,7 +165,6 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
           };
           audio.addEventListener("ended", onEnded);
           audio.addEventListener("error", onError);
-          audio.addEventListener("timeupdate", onTimeUpdate);
           audio.src = url;
           audio.play().catch(() => {
             cleanup();
@@ -162,6 +180,7 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
       await silentReveal(next);
     }
 
+    if (session !== sessionRef.current) return;
     markRevealed(next.id);
     void playNext();
   }, [markRevealed, silentReveal]);
@@ -188,6 +207,7 @@ export function useSpeech(settings: ArenaSettings, messages: DebateMessage[]) {
   }, [messages, settings.tts.enabled, playNext]);
 
   const stop = useCallback(() => {
+    sessionRef.current++;
     queueRef.current = [];
     playingRef.current = false;
     spokenIdsRef.current.clear();

@@ -82,7 +82,8 @@ Behaviour a view must account for:
 ```ts
 {
   speakingId,      // string | null — message id currently being read aloud
-  revealFraction,  // number 0..1 — audio.currentTime / audio.duration
+  revealFraction,  // number 0..1 — fraction of the spoken words already read aloud
+                   // (playback position with the silent pre-roll excluded — see audioPad.ts)
   revealedIds,     // Set<string> — fully spoken message ids
   syncActive,      // boolean — equals settings.tts.enabled
   stop,            // () => void
