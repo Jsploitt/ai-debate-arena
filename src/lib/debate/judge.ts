@@ -246,11 +246,16 @@ export function parseJudgeResponse(
   const beta = side("beta");
   const declared = typeof data.winner === "string" ? data.winner.toLowerCase() : "";
   const gap = Math.abs(alpha.total - beta.total);
+  // The declared winner and the verdict prose come from the same model in the
+  // same breath, so they always agree with each other. Overriding the
+  // declaration from the score totals used to weld a computed "Winner: X"
+  // onto prose that reads as a draw (or vice versa) — the totals + threshold
+  // rule is now only the fallback for a missing or garbled declaration.
   const winner: Side | "tie" =
-    gap < tieThreshold
-      ? "tie"
-      : declared === "alpha" || declared === "beta"
-        ? (declared as Side)
+    declared === "alpha" || declared === "beta" || declared === "tie"
+      ? (declared as Side | "tie")
+      : gap < tieThreshold
+        ? "tie"
         : alpha.total > beta.total
           ? "alpha"
           : "beta";

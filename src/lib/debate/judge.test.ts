@@ -175,7 +175,7 @@ describe("parseJudgeResponse", () => {
     expect(card!.winner).toBe("alpha");
   });
 
-  it("declares a tie when the gap is below the tie threshold, ignoring the declared winner", () => {
+  it("keeps the declared winner even with level totals — the prose agrees with it", () => {
     const raw = scorecardJson({
       alpha: {
         Logic: { score: 7, reason: "x" },
@@ -196,10 +196,17 @@ describe("parseJudgeResponse", () => {
       winner: "alpha",
     });
     const card = parseJudgeResponse(raw, judgeConfig());
+    expect(card!.winner).toBe("alpha");
+  });
+
+  it("respects a declared tie even when the totals differ", () => {
+    // The model's verdict prose matches its declared result; overriding the
+    // declaration from the totals produced "Winner: X" over draw prose.
+    const card = parseJudgeResponse(scorecardJson({ winner: "tie" }), judgeConfig());
     expect(card!.winner).toBe("tie");
   });
 
-  it("falls back to the higher total when the declared winner is not alpha/beta", () => {
+  it("falls back to the higher total when the declared winner is not alpha/beta/tie", () => {
     const card = parseJudgeResponse(scorecardJson({ winner: "unclear" }), judgeConfig());
     expect(card!.winner).toBe("alpha");
   });
@@ -232,8 +239,11 @@ describe("parseJudgeResponse", () => {
     expect(card!.alpha.scores.Rebuttal).toBe(0);
   });
 
-  it("respects a custom scale and tie threshold", () => {
-    const card = parseJudgeResponse(scorecardJson(), judgeConfig({ scale: 5, tieThreshold: 50 }));
+  it("respects a custom scale, and the tie threshold governs the no-declaration fallback", () => {
+    const card = parseJudgeResponse(
+      scorecardJson({ winner: "unclear" }),
+      judgeConfig({ scale: 5, tieThreshold: 50 }),
+    );
     expect(card!.scale).toBe(5);
     expect(card!.winner).toBe("tie"); // huge tie threshold forces a tie
   });
