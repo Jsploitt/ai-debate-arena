@@ -271,11 +271,14 @@ export function buildBriefMessages({
     `"verdict" — one sentence in the ${persona.name}'s voice, closing the decision`,
   ].join("\n");
 
+  const tie = scorecard.winner === "tie";
   return [
     {
       role: "system",
       content: [
-        `You won a live debate and are now writing the ${persona.doc} that goes on screen behind you.`,
+        tie
+          ? `A live debate just ended in a split decision, and you are writing the ${persona.doc} that goes on screen behind you. It must read as a balanced account of BOTH cases — not a victory document: weigh the strongest point from each side, and recommend cautious, reversible next steps that make sense while the question is still open.`
+          : `You won a live debate and are now writing the ${persona.doc} that goes on screen behind you.`,
         `It is read by a ${persona.name}, whose concerns are: ${persona.docFraming}. ${persona.personality}`,
         "",
         "Rules — every one of these is load-bearing:",
@@ -293,7 +296,9 @@ export function buildBriefMessages({
       role: "user",
       content: [
         `Resolution: "${topic}"`,
-        `You are ${names[authorSide]}, and you argued ${stance} the resolution. The judge ruled in your favour.`,
+        tie
+          ? `You are ${names[authorSide]}, and you argued ${stance} the resolution. The judge scored the debate a DRAW — neither side prevailed, and the brief must say so honestly.`
+          : `You are ${names[authorSide]}, and you argued ${stance} the resolution. The judge ruled in your favour.`,
         "",
         "What you argued:",
         own || "(no turns recorded)",

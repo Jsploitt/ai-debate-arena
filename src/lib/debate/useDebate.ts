@@ -514,18 +514,14 @@ export function useDebate(settings: ArenaSettings) {
       });
       const other: Side = side === "alpha" ? "beta" : "alpha";
       // The stance is restated inside every turn request, not just the system
-      // prompt: after a few exchanges the freshest instruction wins, and a
-      // debater mid-rally has echoed the opponent's framing and argued the
-      // wrong side of the motion ("paper fails without power" — from the
-      // e-books side).
+      // prompt: after a few exchanges the freshest instruction wins, and
+      // debaters mid-rally echo the opponent's framing and argue against
+      // their own side. Applies identically to every character, model, side
+      // and topic.
       const stanceReminder =
-        s.language === "ar"
-          ? other === "alpha"
-            ? `تذكير: أنت تؤيد الطرح «${topicValue}» — يجب أن يدافع ردك عنه، لا أن يمنح خصمك أي نقطة.`
-            : `تذكير: أنت تعارض الطرح «${topicValue}» — يجب أن يهاجمه ردك، لا أن يمنح خصمك أي نقطة.`
-          : other === "alpha"
-            ? `Reminder: you argue FOR "${topicValue}" — every sentence of your reply must defend it. Do not hand your opponent a point.`
-            : `Reminder: you argue AGAINST "${topicValue}" — every sentence of your reply must attack it. Do not hand your opponent a point.`;
+        other === "alpha"
+          ? `Reminder: you argue FOR "${topicValue}" — every sentence of your reply must defend it. Do not hand your opponent a point.`
+          : `Reminder: you argue AGAINST "${topicValue}" — every sentence of your reply must attack it. Do not hand your opponent a point.`;
       historyRef.current[other].push({
         role: "user",
         content:
