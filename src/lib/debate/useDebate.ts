@@ -193,7 +193,12 @@ function systemFor(
     // of it is real, none of it has context, and it reads as nonsense on stage.
     'Never name an individual person. No colleagues, customers, users or contacts -- invented or real. Refer to people only by role ("a merchant", "an engineering team").',
     'Never invent an anecdote or claim something happened: no "this morning", no calls you took, no conversations you had, no internal metrics or figures about your opponent\'s company. You have no inside information and no private examples.',
-    "Do not attribute specific actions or statistics to named real companies. Reason about the industry in general terms instead.",
+    // Invented but GENERIC figures are allowed — they make the debate vivid
+    // and nobody expects audited data from a live AI show. What gets the
+    // stage called out is a checkable attribution: a named company, country
+    // or institution credited with a statistic someone in the room can know
+    // is false.
+    "Do not attribute specific actions or statistics to named real companies, countries or institutions. Illustrative figures are fine, but keep them generic (“a pilot fleet”, “early programs”) — never pinned to a real name someone could fact-check.",
     // This runs in front of a live audience, so the register matters as much as
     // the argument. Disagree with the position, never disparage people.
     'Stay courteous and professional throughout. Argue hard against the IDEA, never against your opponent as a person: no insults, no sneering, no contempt, and no dismissive labels for any group of people ("freeloaders" and the like). Nothing you say should be capable of offending anyone in the room.',
@@ -518,10 +523,14 @@ export function useDebate(settings: ArenaSettings) {
       // debaters mid-rally echo the opponent's framing and argue against
       // their own side. Applies identically to every character, model, side
       // and topic.
+      // "Do not hand your opponent a point" proved too blunt: it erased the
+      // concede-then-counter style some characters are built on (Rania's
+      // warm concessions vanished entirely). Tactical acknowledgement is
+      // explicitly allowed; adopting the other side is not.
       const stanceReminder =
         other === "alpha"
-          ? `Reminder: you argue FOR "${topicValue}" — every sentence of your reply must defend it. Do not hand your opponent a point.`
-          : `Reminder: you argue AGAINST "${topicValue}" — every sentence of your reply must attack it. Do not hand your opponent a point.`;
+          ? `Reminder: you argue FOR "${topicValue}" — your reply must push that side. You may acknowledge a point of theirs only to turn it against them; never adopt their side.`
+          : `Reminder: you argue AGAINST "${topicValue}" — your reply must push that side. You may acknowledge a point of theirs only to turn it against them; never adopt their side.`;
       historyRef.current[other].push({
         role: "user",
         content:
