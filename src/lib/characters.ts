@@ -66,8 +66,8 @@ const COMMIT_TO_SIDE =
 export const CHARACTERS: Record<CharacterId, Character> = {
   fahad: {
     id: "fahad",
-    title: "Startup founder",
-    blurb: "Fintech. Bold, narrative-driven, sells the vision.",
+    title: "The Visionary · Startup founder",
+    blurb: "Bold storyteller — paints the win and treats caution as a cost.",
     art: FAHAD_ART,
     nativeSide: "left",
     patch: {
@@ -82,8 +82,8 @@ export const CHARACTERS: Record<CharacterId, Character> = {
   },
   noura: {
     id: "noura",
-    title: "Policy analyst",
-    blurb: "Government. Blunt, data-heavy, hunts vague claims.",
+    title: "The Skeptic · Policy analyst",
+    blurb: "Data-driven — picks vague claims apart and demands numbers.",
     art: NOURA_ART,
     nativeSide: "right",
     patch: {
@@ -98,8 +98,8 @@ export const CHARACTERS: Record<CharacterId, Character> = {
   },
   rania: {
     id: "rania",
-    title: "Family-business heir",
-    blurb: "Logistics. Risk-averse, warm, builds consensus.",
+    title: "The Diplomat · Family-business heir",
+    blurb: "Warm but firm — grants your best point, then shows who pays for it.",
     art: RANIA_ART,
     nativeSide: "left",
     patch: {
@@ -114,8 +114,8 @@ export const CHARACTERS: Record<CharacterId, Character> = {
   },
   khalid: {
     id: "khalid",
-    title: "Marketing strategist",
-    blurb: "Persuasive. Argues adoption and experience over architecture.",
+    title: "The Advocate · Marketing strategist",
+    blurb: "Argues how things feel to real people — in lines that stick.",
     art: KHALID_ART,
     nativeSide: "right",
     patch: {

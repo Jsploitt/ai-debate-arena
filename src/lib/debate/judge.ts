@@ -365,6 +365,13 @@ export function simulateJudge(
         : "beta";
 
   const lead = winner === "alpha" ? names.alpha : names.beta;
+  // The fallback cannot analyse arguments, but it can still point at them:
+  // quoting the winner's own closing sentence keeps even a simulated verdict
+  // recognisably about THIS debate instead of reading as a canned template.
+  const leadSide: Side = winner === "beta" ? "beta" : "alpha";
+  const lastTurn = [...messages].reverse().find((m) => m.side === leadSide && m.content.trim());
+  const sentences = (lastTurn?.content ?? "").match(/[^.!?]+[.!?]/g) ?? [];
+  const quote = (sentences[sentences.length - 1] ?? sentences[0] ?? "").trim().slice(0, 90);
   const verdict = ar
     ? interim
       ? winner === "tie"
@@ -375,11 +382,13 @@ export function simulateJudge(
         : `يذهب القرار إلى ${lead}، الذي حوّل عدداً أكبر من دعاواه إلى تفنيدات مباشرة مدعومة بالأدلة بدل إعادة عرض موقفه الافتتاحي.`
     : interim
       ? winner === "tie"
-        ? `Running score: dead level so far — ${names.alpha} owns structure, ${names.beta} owns pressure.`
+        ? `Running score: dead level so far on "${topic}" — ${names.alpha} owns structure, ${names.beta} owns pressure.`
         : `Running score: ${lead} is ahead right now on sharper, better-evidenced rebuttals.`
       : winner === "tie"
-        ? `The two models finished within a rounding error of each other: ${names.alpha} owned structure, ${names.beta} owned pressure.`
-        : `The decision goes to ${lead}, who converted more of their claims into direct, evidenced rebuttals rather than restating the opening position.`;
+        ? `On "${topic}" the two sides finished within a rounding error of each other: ${names.alpha} owned structure, ${names.beta} owned pressure.`
+        : quote
+          ? `The decision on "${topic}" goes to ${lead}, who kept converting claims into direct rebuttals — landing the last word: "${quote}"`
+          : `The decision on "${topic}" goes to ${lead}, who converted more of their claims into direct, evidenced rebuttals rather than restating the opening position.`;
 
   return {
     alpha,
