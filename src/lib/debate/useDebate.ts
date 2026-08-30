@@ -513,12 +513,25 @@ export function useDebate(settings: ArenaSettings) {
         telemetry,
       });
       const other: Side = side === "alpha" ? "beta" : "alpha";
+      // The stance is restated inside every turn request, not just the system
+      // prompt: after a few exchanges the freshest instruction wins, and a
+      // debater mid-rally has echoed the opponent's framing and argued the
+      // wrong side of the motion ("paper fails without power" — from the
+      // e-books side).
+      const stanceReminder =
+        s.language === "ar"
+          ? other === "alpha"
+            ? `تذكير: أنت تؤيد الطرح «${topicValue}» — يجب أن يدافع ردك عنه، لا أن يمنح خصمك أي نقطة.`
+            : `تذكير: أنت تعارض الطرح «${topicValue}» — يجب أن يهاجمه ردك، لا أن يمنح خصمك أي نقطة.`
+          : other === "alpha"
+            ? `Reminder: you argue FOR "${topicValue}" — every sentence of your reply must defend it. Do not hand your opponent a point.`
+            : `Reminder: you argue AGAINST "${topicValue}" — every sentence of your reply must attack it. Do not hand your opponent a point.`;
       historyRef.current[other].push({
         role: "user",
         content:
           s.language === "ar"
-            ? `قال خصمك للتو: ${spoken}\n\nرُدّ عليه مباشرة وبالعربية، مخاطباً إياه بـ"أنت"، دون ذكر اسمه أو لقبه.`
-            : `Your opponent just said: ${spoken}\n\nRespond to them directly, addressing them as "you" — do not refer to them by any name or label.`,
+            ? `قال خصمك للتو: ${spoken}\n\n${stanceReminder}\n\nرُدّ عليه مباشرة وبالعربية، مخاطباً إياه بـ"أنت"، دون ذكر اسمه أو لقبه.`
+            : `Your opponent just said: ${spoken}\n\n${stanceReminder}\n\nRespond to them directly, addressing them as "you" — do not refer to them by any name or label.`,
       });
 
       turnRef.current = index + 1;
@@ -622,7 +635,10 @@ export function useDebate(settings: ArenaSettings) {
             // lands in the catch below — simulated scoring — and the pending
             // slot drains normally.
             const watchdog = new AbortController();
-            const watchdogTimer = setTimeout(() => watchdog.abort(), 90_000);
+            // 60s: generous for a healthy judge (~10s per interim), short
+            // enough that the now-awaited interim can't stall the turn loop
+            // long when a request hangs.
+            const watchdogTimer = setTimeout(() => watchdog.abort(), 60_000);
             const { scorecard: live, raw } = await runLiveJudge(
               judgeConfig,
               topicRef.current,
@@ -708,9 +724,14 @@ export function useDebate(settings: ArenaSettings) {
     const total = settingsRef.current.rounds * 2;
     while (runningRef.current && turnRef.current < total) {
       await runTurn(turnRef.current);
-      // Live scoring: score the side that just spoke, on its own.
+      // Live scoring: score the side that just spoke, on its own — and WAIT
+      // for it. Fire-and-forget let generation outrun the serialized judge,
+      // so interims coalesced into sparse snapshots and the paced scoreboard
+      // sat still for turns at a time. Awaiting gives every turn its own
+      // scorecard; with voice on, the judge's seconds hide entirely inside
+      // the previous turn's playback time.
       if (turnRef.current < total) {
-        void judgeDebate(true, turnRef.current % 2 === 0 ? "beta" : "alpha");
+        await judgeDebate(true, turnRef.current % 2 === 0 ? "beta" : "alpha");
       }
     }
     busyRef.current = false;

@@ -142,7 +142,11 @@ function ArenaHome() {
     // shown card" — but after a route round-trip this component remounts with
     // an empty queue and no last card, and holding meant showing 0.0 until
     // the voice caught up with the newest judgement. Fall back to the least-
-    // ahead candidate available rather than a scoreboard reset.
+    // ahead candidate available rather than a scoreboard reset — but only
+    // once something has actually been delivered: at debate start (delivered
+    // 0, no previous card) this fallback moved the lean bar mid-speech,
+    // before the score digits were even shown.
+    if (delivered === 0) return;
     setScorecard((prev) => {
       if (prev) return prev;
       let oldest = Infinity;
