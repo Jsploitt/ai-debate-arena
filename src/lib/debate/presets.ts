@@ -146,7 +146,7 @@ export const ALL_TOPICS = [
   "Ban AI from final hiring calls",
   "Remote work beats the office",
   "Four-day work week",
-  "Employees before customers",
+  "Happy employees beat happy customers",
   "Grow leaders, don't hire them",
   "Hire for adaptability, not experience",
   "Marketing beats a prime location",
